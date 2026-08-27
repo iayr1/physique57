@@ -6,22 +6,30 @@ import '../domain/request_status.dart';
 import 'request_repository.dart';
 
 class FirestoreRequestRepository implements IRequestRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _collection =>
       _firestore.collection('requests');
 
   @override
   Future<List<RequestModel>> getEmployeeRequests(String employeeEmail) async {
-    final snapshot = await _collection
-        .where('employeeEmail', isEqualTo: employeeEmail)
-        .get();
+    try {
+      final email = employeeEmail.trim().toLowerCase();
+      final snapshot = await _collection.get();
+      if (snapshot.docs.isEmpty) {
+        return [];
+      }
 
-    if (snapshot.docs.isEmpty) {
+      final list = snapshot.docs
+          .map((doc) => _fromFirestore(doc.data()))
+          .where((r) => r.employeeEmail.trim().toLowerCase() == email)
+          .toList();
+
+      list.sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+      return list;
+    } catch (_) {
       return [];
     }
-
-    return snapshot.docs.map((doc) => _fromFirestore(doc.data())).toList();
   }
 
   @override
@@ -49,6 +57,15 @@ class FirestoreRequestRepository implements IRequestRepository {
   }
 
   RequestModel _fromFirestore(Map<String, dynamic> data) {
+    final rawType = (data['requestType'] ?? '').toString();
+    final type = RequestType.values.firstWhere(
+      (e) =>
+          e.name.toLowerCase() == rawType.toLowerCase() ||
+          e.title.toLowerCase() == rawType.toLowerCase() ||
+          rawType.toLowerCase().contains(e.name.toLowerCase()),
+      orElse: () => RequestType.leave,
+    );
+
     return RequestModel(
       requestId: data['requestId'] ?? '',
       employeeId: data['employeeId'] ?? '',
@@ -56,16 +73,10 @@ class FirestoreRequestRepository implements IRequestRepository {
       employeeEmail: data['employeeEmail'] ?? '',
       department: data['department'] ?? '',
       managerEmail: data['managerEmail'] ?? '',
-      requestType: RequestType.values.firstWhere(
-        (e) => e.name == data['requestType'] || e.title == data['requestType'],
-        orElse: () => RequestType.other,
-      ),
+      requestType: type,
       requestData: Map<String, dynamic>.from(data['requestData'] ?? {}),
       attachments: List<String>.from(data['attachments'] ?? []),
-      status: RequestStatus.values.firstWhere(
-        (e) => e.name == data['status'],
-        orElse: () => RequestStatus.pendingManagerApproval,
-      ),
+      status: RequestStatus.fromString(data['status']?.toString() ?? ''),
       submittedAt: data['submittedAt'] != null
           ? (data['submittedAt'] is Timestamp
               ? (data['submittedAt'] as Timestamp).toDate()

@@ -93,6 +93,19 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
     final user = ref.read(authProvider).value;
     if (user == null) return;
 
+    final remaining = user.getRemainingLeave(_leaveType);
+    if (_leaveType != 'Unpaid Leave' && _numberOfDays > remaining) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Insufficient leave balance! You requested $_numberOfDays day(s), but only have $remaining day(s) remaining for $_leaveType. Please choose fewer days or select Unpaid Leave.',
+          ),
+          backgroundColor: AppColors.statusRejected,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     final requestId = RequestIdGenerator.generate();
@@ -151,6 +164,9 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider).value;
+    final remainingDays = user?.getRemainingLeave(_leaveType) ?? 0;
+    final totalDays = user?.getTotalLeave(_leaveType) ?? 0;
+    final usedDays = user?.getUsedLeave(_leaveType) ?? 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -212,6 +228,36 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
               onChanged: (val) => setState(() => _leaveType = val!),
               decoration: const InputDecoration(),
             ),
+            const SizedBox(height: 8),
+
+            // Live Quota Indicator Badge
+            if (_leaveType != 'Unpaid Leave')
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: remainingDays > 0 ? Colors.green.withValues(alpha: 0.08) : Colors.red.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: remainingDays > 0 ? Colors.green.withValues(alpha: 0.25) : Colors.red.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      remainingDays > 0 ? Icons.check_circle_outline_rounded : Icons.warning_amber_rounded,
+                      size: 18,
+                      color: remainingDays > 0 ? Colors.green : Colors.red,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Remaining Quota: $remainingDays / $totalDays Days  (Used: $usedDays Days)',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: remainingDays > 0 ? Colors.green[800] : Colors.red[800],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 16),
 
             // Date Pickers Row

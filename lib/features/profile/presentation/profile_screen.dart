@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -14,7 +16,6 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).value;
     final themeMode = ref.watch(themeModeProvider);
-    final backendType = ref.watch(backendTypeProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -48,7 +49,7 @@ class ProfileScreen extends ConsumerWidget {
                       child: CircleAvatar(
                         radius: 48,
                         backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                        child: user != null
+                        child: (user != null && user.photoUrl.isNotEmpty)
                             ? ClipOval(
                                 child: Image.network(
                                   user.photoUrl,
@@ -65,7 +66,14 @@ class ProfileScreen extends ConsumerWidget {
                                   ),
                                 ),
                               )
-                            : const Icon(Icons.person, size: 48, color: AppColors.primary),
+                            : Text(
+                                (user != null && user.name.isNotEmpty) ? user.name[0].toUpperCase() : 'U',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
                       ),
                     ),
                     Positioned(
@@ -106,20 +114,106 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Chip(
-                  label: Text(
-                    user?.id ?? '',
-                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
-                  ),
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                  side: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Chip(
+                      label: Text(
+                        user?.id ?? '',
+                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
+                      ),
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                      side: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
+                    ),
+                    if (user?.isAdmin == true || user?.email.toLowerCase() == 'mayurailead@gmail.com') ...[
+                      const SizedBox(width: 8),
+                      Chip(
+                        label: Text(
+                          'Administrator',
+                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.purple),
+                        ),
+                        backgroundColor: Colors.purple.withValues(alpha: 0.1),
+                        side: BorderSide(color: Colors.purple.withValues(alpha: 0.2)),
+                      ),
+                    ],
+                  ],
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Admin Portal Quick Action (if admin)
+          if (user?.isAdmin == true || user?.email.toLowerCase() == 'mayurailead@gmail.com') ...[
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              color: const Color(0xFF0F172A),
+              child: ListTile(
+                leading: const Icon(Icons.admin_panel_settings_rounded, color: Colors.white),
+                title: Text(
+                  'Open Admin Management Portal',
+                  style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                subtitle: Text(
+                  'Review requests, onboard employees, and view logs',
+                  style: GoogleFonts.plusJakartaSans(color: Colors.grey[400], fontSize: 11),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 16),
+                onTap: () => context.push('/admin'),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          // Leave Quotas Breakdown Section
+          Text('Leave Quota & Balances', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
+          const SizedBox(height: 12),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  _buildQuotaRow(
+                    'Annual / Paid Leave',
+                    user?.getRemainingLeave('Annual / Paid Leave') ?? 0,
+                    user?.getTotalLeave('Annual / Paid Leave') ?? 0,
+                    user?.getUsedLeave('Annual / Paid Leave') ?? 0,
+                    Colors.blue,
+                  ),
+                  const Divider(height: 16, color: Color(0xFFF1F5F9)),
+                  _buildQuotaRow(
+                    'Casual Leave',
+                    user?.getRemainingLeave('Casual Leave') ?? 0,
+                    user?.getTotalLeave('Casual Leave') ?? 0,
+                    user?.getUsedLeave('Casual Leave') ?? 0,
+                    Colors.orange,
+                  ),
+                  const Divider(height: 16, color: Color(0xFFF1F5F9)),
+                  _buildQuotaRow(
+                    'Sick Leave',
+                    user?.getRemainingLeave('Sick Leave') ?? 0,
+                    user?.getTotalLeave('Sick Leave') ?? 0,
+                    user?.getUsedLeave('Sick Leave') ?? 0,
+                    Colors.green,
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
 
           // User Info Section
+          Text('Employment Information', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
+          const SizedBox(height: 12),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -173,7 +267,7 @@ class ProfileScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Settings & Switchers
-          Text('Settings & Configuration', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
+          Text('Settings & Account Security', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
           const SizedBox(height: 12),
           Card(
             elevation: 0,
@@ -183,6 +277,55 @@ class ProfileScreen extends ConsumerWidget {
             ),
             child: Column(
               children: [
+                // Change / Reset Password Action
+                ListTile(
+                  leading: const Icon(Icons.lock_reset_rounded, color: AppColors.primary),
+                  title: Text('Change / Reset Password', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+                  subtitle: Text('Send password reset link to your email', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondaryLight)),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                  onTap: () async {
+                    if (user == null || user.email.isEmpty) return;
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text('Reset Password?', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                        content: Text(
+                          'A secure password reset link will be sent to ${user.email}. You can open the link in your email to set a new password.',
+                          style: GoogleFonts.plusJakartaSans(),
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Send Email', style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirm == true) {
+                      try {
+                        await FirebaseAuth.instance.sendPasswordResetEmail(email: user.email);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Password reset link sent to ${user.email}! Check your inbox.'),
+                              backgroundColor: AppColors.statusApproved,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: AppColors.statusRejected),
+                          );
+                        }
+                      }
+                    }
+                  },
+                ),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 SwitchListTile(
                   secondary: const Icon(Icons.dark_mode_outlined, color: AppColors.primary),
                   title: Text('Dark Mode', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
@@ -195,81 +338,6 @@ class ProfileScreen extends ConsumerWidget {
                   },
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.cloud_sync_outlined, color: AppColors.primary),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              'Backend Repository Engine',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white : AppColors.textPrimaryLight,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(56, 0, 16, 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              backendType == BackendType.mock
-                                  ? 'Local Mock Repository (Offline Demo)'
-                                  : backendType == BackendType.googleSheets
-                                      ? 'Google Apps Script / Sheets API'
-                                      : 'Firebase Authentication & Firestore',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          DropdownButton<BackendType>(
-                            value: backendType,
-                            underline: const SizedBox(),
-                            dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                            style: GoogleFonts.plusJakartaSans(
-                              color: isDark ? Colors.white : AppColors.textPrimaryLight,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: BackendType.mock,
-                                child: Text('Mock Engine'),
-                              ),
-                              DropdownMenuItem(
-                                value: BackendType.googleSheets,
-                                child: Text('Google Sheets API'),
-                              ),
-                              DropdownMenuItem(
-                                value: BackendType.firebase,
-                                child: Text('Firebase Engine'),
-                              ),
-                            ],
-                            onChanged: (val) {
-                              if (val != null) {
-                                ref.read(backendTypeProvider.notifier).state = val;
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 ListTile(
                   leading: const Icon(Icons.help_outline_rounded, color: AppColors.primary),
                   title: Text('Help & Support FAQ', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
@@ -280,7 +348,7 @@ class ProfileScreen extends ConsumerWidget {
                       builder: (ctx) => AlertDialog(
                         title: Text('ERMS Help & Support', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
                         content: Text(
-                          'For urgent requests or manager escalations, please contact the System Administrator.',
+                          'For urgent requests or manager escalations, please contact the System Administrator (mayurailead@gmail.com).',
                           style: GoogleFonts.plusJakartaSans(),
                         ),
                         actions: [
@@ -311,6 +379,34 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildQuotaRow(String title, int remaining, int total, int used, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
+        ),
+        Text(
+          '$remaining / $total Days',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13, color: color),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '($used used)',
+          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[500]),
+        ),
+      ],
     );
   }
 }

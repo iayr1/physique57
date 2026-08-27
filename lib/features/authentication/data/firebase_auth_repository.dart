@@ -4,43 +4,54 @@ import '../domain/employee_model.dart';
 import 'auth_repository.dart';
 
 class FirebaseAuthRepository implements IAuthRepository {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _employeesCollection =>
       _firestore.collection('employees');
 
   @override
   Future<EmployeeModel?> getCurrentUser() async {
-    final firebaseUser = _auth.currentUser;
-    if (firebaseUser == null) return null;
+    try {
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser == null) return null;
 
-    final email = firebaseUser.email;
-    if (email == null) return null;
+      final email = firebaseUser.email;
+      if (email == null) return null;
 
-    // Always fetch from Firestore — no hardcoded profiles
-    final doc = await _employeesCollection.doc(email).get();
-    if (doc.exists && doc.data() != null) {
-      return EmployeeModel.fromJson(doc.data()!);
-    }
+      // Fetch from Firestore with fallback
+      try {
+        final doc = await _employeesCollection.doc(email).get();
+        if (doc.exists && doc.data() != null) {
+          return EmployeeModel.fromJson(doc.data()!);
+        }
+      } catch (_) {}
 
-    // If admin logs in for the first time and has no Firestore profile yet, bootstrap it
-    if (email == 'mayurailead@gmail.com') {
-      final adminProfile = EmployeeModel(
-        id: 'ADMIN-001',
-        name: firebaseUser.displayName ?? 'Admin',
+      // Fallback profile from authenticated Firebase User
+      final isAdmin = email.trim().toLowerCase() == 'mayurailead@gmail.com';
+      final profile = EmployeeModel(
+        id: isAdmin ? 'ADMIN-001' : 'EMP-${1000 + email.hashCode.abs() % 8000}',
+        name: firebaseUser.displayName?.isNotEmpty == true
+            ? firebaseUser.displayName!
+            : (isAdmin ? 'System Administrator' : email.split('@').first),
         email: email,
-        department: 'Administration',
-        designation: 'System Administrator',
-        reportingManagerName: 'N/A',
-        reportingManagerEmail: 'n/a',
+        department: isAdmin ? 'Administration' : 'General',
+        designation: isAdmin ? 'System Administrator' : 'Employee',
+        reportingManagerName: isAdmin ? 'Executive Board' : 'N/A',
+        reportingManagerEmail: isAdmin ? 'board@company.com' : 'n/a',
         photoUrl: firebaseUser.photoURL ?? '',
+        role: isAdmin ? 'admin' : 'employee',
+        leaveBalances: EmployeeModel.defaultLeaveBalances(),
       );
-      await _employeesCollection.doc(email).set(adminProfile.toJson());
-      return adminProfile;
-    }
 
-    return null;
+      try {
+        await _employeesCollection.doc(email).set(profile.toJson());
+      } catch (_) {}
+
+      return profile;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

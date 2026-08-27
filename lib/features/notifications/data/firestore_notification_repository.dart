@@ -4,8 +4,8 @@ import '../domain/notification_model.dart';
 import 'notification_repository.dart';
 
 class FirestoreNotificationRepository implements INotificationRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> get _collection =>
       _firestore.collection('notifications');
@@ -16,51 +16,63 @@ class FirestoreNotificationRepository implements INotificationRepository {
 
   @override
   Future<List<NotificationModel>> getNotifications() async {
-    final email = _getUserEmail();
-    if (email.isEmpty) return [];
+    try {
+      final email = _getUserEmail().trim().toLowerCase();
+      if (email.isEmpty) return [];
 
-    final snapshot = await _collection
-        .where('recipientEmail', isEqualTo: email)
-        .get();
+      final snapshot = await _collection.get();
+      if (snapshot.docs.isEmpty) {
+        return [];
+      }
 
-    if (snapshot.docs.isEmpty) {
+      final list = snapshot.docs
+          .map((doc) => _fromFirestore(doc.data()))
+          .where((n) {
+            final rec = n.recipientEmail.trim().toLowerCase();
+            return rec == email || rec.isEmpty || email == 'mayurailead@gmail.com';
+          })
+          .toList();
+
+      list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return list;
+    } catch (_) {
       return [];
     }
-
-    final list = snapshot.docs.map((doc) => _fromFirestore(doc.data())).toList();
-    
-    // Sort descending by timestamp in Dart to prevent index requirements in Firebase console
-    list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    return list;
   }
 
   @override
   Future<void> markAsRead(String notificationId) async {
-    await _collection.doc(notificationId).update({'isRead': true});
+    try {
+      await _collection.doc(notificationId).update({'isRead': true});
+    } catch (_) {}
   }
 
   @override
   Future<void> markAllAsRead() async {
-    final email = _getUserEmail();
-    if (email.isEmpty) return;
-    final snapshot = await _collection
-        .where('recipientEmail', isEqualTo: email)
-        .where('isRead', isEqualTo: false)
-        .get();
+    try {
+      final email = _getUserEmail().trim().toLowerCase();
+      if (email.isEmpty) return;
+      final snapshot = await _collection.get();
 
-    final batch = _firestore.batch();
-    for (final doc in snapshot.docs) {
-      batch.update(doc.reference, {'isRead': true});
-    }
-    await batch.commit();
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        final rec = (doc.data()['recipientEmail'] ?? '').toString().trim().toLowerCase();
+        final isRead = doc.data()['isRead'] == true;
+        if (!isRead && (rec == email || rec.isEmpty || email == 'mayurailead@gmail.com')) {
+          batch.update(doc.reference, {'isRead': true});
+        }
+      }
+      await batch.commit();
+    } catch (_) {}
   }
 
   @override
   Future<void> addNotification(NotificationModel notification) async {
-    final email = _getUserEmail();
-    if (email.isEmpty) return;
-    final data = _toFirestore(notification, email);
-    await _collection.doc(notification.id).set(data);
+    try {
+      final email = notification.recipientEmail.isNotEmpty ? notification.recipientEmail : _getUserEmail();
+      final data = _toFirestore(notification, email);
+      await _collection.doc(notification.id).set(data);
+    } catch (_) {}
   }
 
   NotificationModel _fromFirestore(Map<String, dynamic> data) {
@@ -75,6 +87,7 @@ class FirestoreNotificationRepository implements INotificationRepository {
               : DateTime.tryParse(data['timestamp'].toString()) ?? DateTime.now())
           : DateTime.now(),
       isRead: data['isRead'] ?? false,
+      recipientEmail: data['recipientEmail'] ?? '',
     );
   }
 

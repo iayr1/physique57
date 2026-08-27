@@ -9,5 +9,6 @@ void main() {
         child: ErmsApp(),
       ),
     );
+    await tester.pump(const Duration(milliseconds: 3000));
   });
 }

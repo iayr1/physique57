@@ -1,23 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/requests/data/firestore_request_repository.dart';
-import '../features/requests/data/google_sheets_request_repository.dart';
-import '../features/requests/data/mock_request_repository.dart';
 import '../features/requests/data/request_repository.dart';
 import '../features/requests/domain/request_category_model.dart';
 import '../features/requests/domain/request_model.dart';
 import '../features/requests/domain/request_status.dart';
 import 'auth_provider.dart';
 import 'notification_provider.dart';
-import 'theme_provider.dart';
 
 final requestRepositoryProvider = Provider<IRequestRepository>((ref) {
-  final backendType = ref.watch(backendTypeProvider);
-  if (backendType == BackendType.firebase) {
-    return FirestoreRequestRepository();
-  } else if (backendType == BackendType.googleSheets) {
-    return GoogleSheetsRequestRepository();
-  }
-  return MockRequestRepository();
+  return FirestoreRequestRepository();
 });
 
 class RequestsState {
@@ -156,6 +147,10 @@ class RequestsNotifier extends StateNotifier<RequestsState> {
 
 final requestsProvider = StateNotifierProvider<RequestsNotifier, RequestsState>((ref) {
   final repo = ref.watch(requestRepositoryProvider);
-  ref.watch(authProvider);
-  return RequestsNotifier(repo, ref);
+  final authState = ref.watch(authProvider);
+  final notifier = RequestsNotifier(repo, ref);
+  if (authState.value != null) {
+    notifier.loadRequests();
+  }
+  return notifier;
 });

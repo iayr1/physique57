@@ -4,14 +4,9 @@ import '../features/notifications/data/notification_repository.dart';
 import '../features/notifications/domain/notification_model.dart';
 import '../features/requests/domain/request_model.dart';
 import 'auth_provider.dart';
-import 'theme_provider.dart';
 
 final notificationRepositoryProvider = Provider<INotificationRepository>((ref) {
-  final backendType = ref.watch(backendTypeProvider);
-  if (backendType == BackendType.firebase) {
-    return FirestoreNotificationRepository();
-  }
-  return MockNotificationRepository();
+  return FirestoreNotificationRepository();
 });
 
 class NotificationNotifier extends StateNotifier<AsyncValue<List<NotificationModel>>> {
@@ -64,8 +59,12 @@ class NotificationNotifier extends StateNotifier<AsyncValue<List<NotificationMod
 final notificationProvider =
     StateNotifierProvider<NotificationNotifier, AsyncValue<List<NotificationModel>>>((ref) {
   final repo = ref.watch(notificationRepositoryProvider);
-  ref.watch(authProvider);
-  return NotificationNotifier(repo, ref);
+  final authState = ref.watch(authProvider);
+  final notifier = NotificationNotifier(repo, ref);
+  if (authState.value != null) {
+    notifier.loadNotifications();
+  }
+  return notifier;
 });
 
 final unreadNotificationCountProvider = Provider<int>((ref) {

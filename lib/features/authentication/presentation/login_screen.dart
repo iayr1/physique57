@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -44,16 +45,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    if (kIsWeb) {
-      if (email != 'mayurailead@gmail.com' || password != 'mayur1675') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Access denied. Only the administrator is allowed to log in on the Web Portal.'),
-            backgroundColor: AppColors.statusRejected,
-          ),
-        );
-        return;
-      }
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your password')),
+      );
+      return;
     }
 
     setState(() => _isLoading = true);
@@ -61,8 +57,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(authProvider.notifier).signInWithEmailAndPassword(email, password);
     } catch (e) {
       if (mounted) {
+        String message = e.toString();
+        if (e is FirebaseAuthException) {
+          switch (e.code) {
+            case 'user-not-found':
+              message = 'No account found with this email. Contact your administrator.';
+              break;
+            case 'wrong-password':
+            case 'invalid-credential':
+              message = 'Incorrect password. Try again or tap "First time or setup password?" below.';
+              break;
+            case 'invalid-email':
+              message = 'Invalid email address format.';
+              break;
+            case 'user-disabled':
+              message = 'This account has been disabled.';
+              break;
+            default:
+              message = e.message ?? e.code;
+          }
+        } else if (message.startsWith('Exception: ')) {
+          message = message.substring(11);
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Login error: ${e.toString()}')),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: AppColors.statusRejected,
+          ),
         );
       }
     } finally {
@@ -400,12 +421,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         : Row(
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
-                                              Image.network(
-                                                'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
-                                                height: 22,
-                                                width: 22,
-                                                errorBuilder: (context, error, stackTrace) =>
-                                                    const Icon(Icons.account_circle, color: AppColors.primary),
+                                              const Icon(
+                                                Icons.g_mobiledata_rounded,
+                                                size: 28,
+                                                color: Colors.blue,
                                               ),
                                               const SizedBox(width: 12),
                                               Text(

@@ -32,16 +32,18 @@ final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(d
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
+  final user = authState.valueOrNull;
   final hasCompletedOnboarding = ref.watch(hasCompletedOnboardingProvider);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/splash',
     redirect: (context, state) {
-      final isLoggedIn = authState.valueOrNull != null;
+      final isLoggedIn = user != null;
       final isLoggingIn = state.matchedLocation == '/login';
       final isSplash = state.matchedLocation == '/splash';
       final isOnboarding = state.matchedLocation == '/onboarding';
+      final isAdminRoute = state.matchedLocation == '/admin';
 
       // Let splash screen flow bypass routing redirects
       if (isSplash) return null;
@@ -55,14 +57,23 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // If onboarding is completed but user is not logged in
       if (!isLoggedIn) {
-        if (isOnboarding) return '/login';
+        if (isOnboarding || isAdminRoute) return '/login';
         if (!isLoggingIn) return '/login';
         return null;
       }
 
       // If user is logged in
       if (isLoggedIn) {
-        if (isLoggingIn || isOnboarding) return '/';
+        if (isLoggingIn || isOnboarding) {
+          if (kIsWeb && (user.isAdmin || user.email.toLowerCase() == 'mayurailead@gmail.com')) {
+            return '/admin';
+          }
+          return '/';
+        }
+        // Protect admin route from non-admins
+        if (isAdminRoute && !user.isAdmin && user.email.toLowerCase() != 'mayurailead@gmail.com') {
+          return '/';
+        }
       }
 
       return null;
@@ -80,6 +91,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/login',
         builder: (context, state) => const LoginScreen(),
       ),
+      GoRoute(
+        path: '/admin',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const AdminDashboardScreen(),
+      ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) {
@@ -89,7 +105,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/',
-            builder: (context, state) => kIsWeb ? const AdminDashboardScreen() : const DashboardScreen(),
+            builder: (context, state) {
+              final currentUser = ref.watch(authProvider).valueOrNull;
+              if (kIsWeb && (currentUser?.isAdmin == true || currentUser?.email.toLowerCase() == 'mayurailead@gmail.com')) {
+                return const AdminDashboardScreen();
+              }
+              return const DashboardScreen();
+            },
           ),
           GoRoute(
             path: '/categories',

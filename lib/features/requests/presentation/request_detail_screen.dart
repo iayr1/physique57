@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -7,7 +8,12 @@ import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/approval_timeline.dart';
 import '../../../core/widgets/custom_button.dart';
 import '../../../core/widgets/status_badge.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../providers/request_provider.dart';
+import '../../authentication/domain/employee_model.dart';
+import '../domain/approval_step_model.dart';
+import '../domain/request_category_model.dart';
+import '../domain/request_model.dart';
 import '../domain/request_status.dart';
 
 class RequestDetailScreen extends ConsumerWidget {
@@ -21,13 +27,72 @@ class RequestDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(requestsProvider);
+    final currentUser = ref.watch(authProvider).valueOrNull;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final request = state.requests.firstWhere(
-      (r) => r.requestId == requestId,
-      orElse: () => throw Exception('Request not found'),
-    );
+    final existingIndex = state.requests.indexWhere((r) => r.requestId == requestId);
+    if (existingIndex != -1) {
+      final request = state.requests[existingIndex];
+      return _buildRequestScaffold(context, ref, request, currentUser, isDark);
+    }
 
+    return FutureBuilder<RequestModel>(
+      future: ref.read(requestRepositoryProvider).getRequestById(requestId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(title: Text(requestId)),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Request Details')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.description_outlined, size: 56, color: Colors.grey),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Request Not Found',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'The request "$requestId" has been processed or removed.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.plusJakartaSans(color: Colors.grey),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      label: const Text('Go Back'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return _buildRequestScaffold(context, ref, snapshot.data!, currentUser, isDark);
+      },
+    );
+  }
+
+  Widget _buildRequestScaffold(
+    BuildContext context,
+    WidgetRef ref,
+    RequestModel request,
+    EmployeeModel? currentUser,
+    bool isDark,
+  ) {
     return Scaffold(
       appBar: AppBar(
         title: Text(request.requestId, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
@@ -244,11 +309,231 @@ class RequestDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
 
-          // Cancel Request Button if Pending
-          if (request.status == RequestStatus.pendingManagerApproval ||
-              request.status == RequestStatus.pendingHrApproval)
+          // Admin / Manager Approval Buttons if Pending
+          if ((request.status == RequestStatus.pendingManagerApproval ||
+                  request.status == RequestStatus.pendingHrApproval) &&
+              (currentUser?.isAdmin == true ||
+                  currentUser?.email.toLowerCase() == 'mayurailead@gmail.com' ||
+                  currentUser?.email == request.managerEmail)) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
+                    label: Text(
+                      request.requestType == RequestType.leave ? 'Approve & Deduct' : 'Approve',
+                      style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text('Approve Request?', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                          content: Text(
+                            request.requestType == RequestType.leave
+                                ? 'Approve ${request.requestId} and automatically deduct ${request.requestData['numberOfDays'] ?? 1} day(s) from ${request.employeeName}\'s leave balance?'
+                                : 'Are you sure you want to approve ${request.requestId}?',
+                            style: GoogleFonts.plusJakartaSans(),
+                          ),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Approve', style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm != true) return;
+
+                      try {
+                        // 1. If Leave, deduct from employee leave balance in Firestore
+                        if (request.requestType == RequestType.leave && request.employeeEmail.isNotEmpty) {
+                          final leaveType = request.requestData['leaveType'] as String? ?? 'Annual / Paid Leave';
+                          final days = (request.requestData['numberOfDays'] as num?)?.toInt() ?? 1;
+
+                          final empRef = FirebaseFirestore.instance.collection('employees').doc(request.employeeEmail);
+                          final empDoc = await empRef.get();
+                          if (empDoc.exists && empDoc.data() != null) {
+                            final emp = EmployeeModel.fromJson(empDoc.data()!);
+                            final balances = Map<String, dynamic>.from(emp.leaveBalances);
+                            final categoryQuota = Map<String, dynamic>.from(
+                              balances[leaveType] ?? {'total': 18, 'used': 0, 'remaining': 18},
+                            );
+
+                            final currentRemaining = (categoryQuota['remaining'] as num?)?.toInt() ?? 18;
+                            final currentUsed = (categoryQuota['used'] as num?)?.toInt() ?? 0;
+
+                            categoryQuota['remaining'] = (currentRemaining - days).clamp(0, 999);
+                            categoryQuota['used'] = currentUsed + days;
+                            balances[leaveType] = categoryQuota;
+
+                            await empRef.update({'leaveBalances': balances});
+                          }
+                        }
+
+                        // 2. Update Request in Firestore
+                        final newStep = ApprovalStepModel(
+                          title: 'Approved by Administrator',
+                          actorName: currentUser?.name ?? 'System Administrator',
+                          actorRole: 'System Administrator',
+                          timestamp: DateTime.now(),
+                          isCompleted: true,
+                          comment: 'Request approved successfully.',
+                        );
+                        final updatedHistory = [...request.approvalHistory, newStep];
+
+                        await FirebaseFirestore.instance.collection('requests').doc(request.requestId).update({
+                          'status': 'approved',
+                          'approvalHistory': updatedHistory.map((s) => s.toJson()).toList(),
+                        });
+
+                        // 3. Send Notification
+                        final notifId = 'NOTIF-${DateTime.now().millisecondsSinceEpoch}';
+                        await FirebaseFirestore.instance.collection('notifications').doc(notifId).set({
+                          'id': notifId,
+                          'title': 'Request Approved! ✅',
+                          'message': 'Your ${request.requestType.title} request (${request.requestId}) was approved.',
+                          'requestId': request.requestId,
+                          'timestamp': Timestamp.now(),
+                          'isRead': false,
+                          'recipientEmail': request.employeeEmail,
+                        });
+
+                        await ref.read(requestsProvider.notifier).loadRequests();
+                        await ref.read(authProvider.notifier).reloadUserProfile();
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Request ${request.requestId} approved successfully!'),
+                              backgroundColor: AppColors.statusApproved,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error approving request: $e'), backgroundColor: AppColors.statusRejected),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.cancel_outlined, color: Colors.white),
+                    label: Text(
+                      'Reject',
+                      style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    onPressed: () async {
+                      final reasonController = TextEditingController();
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text('Reject Request', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Please provide a reason for rejecting ${request.requestId}:'),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: reasonController,
+                                maxLines: 3,
+                                decoration: const InputDecoration(
+                                  hintText: 'e.g. Incomplete details, scheduling conflict...',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Reject', style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm != true) return;
+                      final reason = reasonController.text.trim().isEmpty ? 'Rejected by Administrator' : reasonController.text.trim();
+
+                      try {
+                        final newStep = ApprovalStepModel(
+                          title: 'Rejected by Administrator',
+                          actorName: currentUser?.name ?? 'System Administrator',
+                          actorRole: 'System Administrator',
+                          timestamp: DateTime.now(),
+                          isCompleted: false,
+                          isRejected: true,
+                          comment: reason,
+                        );
+                        final updatedHistory = [...request.approvalHistory, newStep];
+
+                        await FirebaseFirestore.instance.collection('requests').doc(request.requestId).update({
+                          'status': 'rejected',
+                          'rejectionReason': reason,
+                          'approvalHistory': updatedHistory.map((s) => s.toJson()).toList(),
+                        });
+
+                        final notifId = 'NOTIF-${DateTime.now().millisecondsSinceEpoch}';
+                        await FirebaseFirestore.instance.collection('notifications').doc(notifId).set({
+                          'id': notifId,
+                          'title': 'Request Rejected ❌',
+                          'message': 'Your ${request.requestType.title} request (${request.requestId}) was rejected. Reason: $reason',
+                          'requestId': request.requestId,
+                          'timestamp': Timestamp.now(),
+                          'isRead': false,
+                          'recipientEmail': request.employeeEmail,
+                        });
+
+                        await ref.read(requestsProvider.notifier).loadRequests();
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Request ${request.requestId} rejected.'), backgroundColor: AppColors.statusRejected),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error rejecting: $e'), backgroundColor: AppColors.statusRejected),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // Cancel Request Button if Pending and current user is requester
+          if ((request.status == RequestStatus.pendingManagerApproval ||
+                  request.status == RequestStatus.pendingHrApproval) &&
+              currentUser?.email == request.employeeEmail)
             CustomButton(
-              text: 'Cancel Request',
+              text: 'Cancel My Request',
               isOutlined: true,
               backgroundColor: AppColors.statusRejected,
               textColor: AppColors.statusRejected,

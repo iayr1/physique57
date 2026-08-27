@@ -7,4 +7,4 @@ final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 
 final backendTypeProvider = StateProvider<BackendType>((ref) => BackendType.firebase);
 
-final hasCompletedOnboardingProvider = StateProvider<bool>((ref) => false);
+final hasCompletedOnboardingProvider = StateProvider<bool>((ref) => true);

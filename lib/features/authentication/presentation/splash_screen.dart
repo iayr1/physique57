@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,16 +17,27 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  Timer? _timer;
+
   @override
   void initState() {
     super.initState();
     _startNavigationTimer();
   }
 
-  void _startNavigationTimer() async {
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startNavigationTimer() {
     // Keep splash visible for at least 2.5 seconds for visual branding
-    await Future.delayed(const Duration(milliseconds: 2500));
-    _checkStatusAndNavigate();
+    _timer = Timer(const Duration(milliseconds: 2500), () {
+      if (mounted) {
+        _checkStatusAndNavigate();
+      }
+    });
   }
 
   void _checkStatusAndNavigate() {
@@ -35,7 +47,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     // If auth state is still loading, wait and retry shortly
     if (authState.isLoading) {
-      Future.delayed(const Duration(milliseconds: 200), _checkStatusAndNavigate);
+      _timer = Timer(const Duration(milliseconds: 200), () {
+        if (mounted) {
+          _checkStatusAndNavigate();
+        }
+      });
       return;
     }
 

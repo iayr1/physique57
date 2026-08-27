@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
@@ -25,6 +26,13 @@ class DashboardScreen extends ConsumerWidget {
       );
     }
 
+    final annualRemaining = user.getRemainingLeave('Annual / Paid Leave');
+    final annualTotal = user.getTotalLeave('Annual / Paid Leave');
+    final casualRemaining = user.getRemainingLeave('Casual Leave');
+    final casualTotal = user.getTotalLeave('Casual Leave');
+    final sickRemaining = user.getRemainingLeave('Sick Leave');
+    final sickTotal = user.getTotalLeave('Sick Leave');
+
     return Scaffold(
       backgroundColor: isDark ? AppColors.surfaceDark : const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -36,18 +44,23 @@ class DashboardScreen extends ConsumerWidget {
             CircleAvatar(
               radius: 20,
               backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-              child: ClipOval(
-                child: Image.network(
-                  user.photoUrl,
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Text(
-                    user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
-                  ),
-                ),
-              ),
+              child: (user.photoUrl.isNotEmpty)
+                  ? ClipOval(
+                      child: Image.network(
+                        user.photoUrl,
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Text(
+                          user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                        ),
+                      ),
+                    )
+                  : Text(
+                      user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                    ),
             ),
             const SizedBox(width: 12),
             Column(
@@ -72,10 +85,137 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
+        actions: [
+          if (user.isAdmin || user.email.toLowerCase() == 'mayurailead@gmail.com')
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: IconButton(
+                icon: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.primary),
+                tooltip: 'Open Admin Portal',
+                onPressed: () => context.push('/admin'),
+              ),
+            ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          // Admin Shortcut Banner (if admin)
+          if (user.isAdmin || user.email.toLowerCase() == 'mayurailead@gmail.com') ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.admin_panel_settings_rounded, color: Colors.white, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Administrator Access',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Onboard employees, approve leaves & manage enterprise.',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: Colors.grey[400],
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => context.push('/admin'),
+                    child: const Text('Open Portal', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Leave Quota Balance Overview
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'My Leave Balances',
+                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      InkWell(
+                        onTap: () => context.push('/forms/leave'),
+                        child: Text(
+                          '+ Apply Leave',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      _buildLeaveBadge('Annual', '$annualRemaining / $annualTotal', Colors.blue),
+                      const SizedBox(width: 8),
+                      _buildLeaveBadge('Casual', '$casualRemaining / $casualTotal', Colors.orange),
+                      const SizedBox(width: 8),
+                      _buildLeaveBadge('Sick', '$sickRemaining / $sickTotal', Colors.green),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
           // Attendance Logging Section
           todayAttendance.when(
             data: (attendance) {
@@ -118,7 +258,9 @@ class DashboardScreen extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Checked in at ${DateFormat('hh:mm a').format(attendance!.checkInTime!)}',
+                              attendance?.checkInTime != null
+                                  ? 'Checked in at ${DateFormat('hh:mm a').format(attendance!.checkInTime!)}'
+                                  : 'Checked in today',
                               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500),
                             ),
                             const SizedBox(height: 14),
@@ -164,34 +306,81 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               );
             },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, st) => Center(child: Text('Error: $err')),
+            loading: () => Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              child: const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            ),
+            error: (_, __) => Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Daily Work Clock', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () => ref.read(todayAttendanceProvider.notifier).checkIn(),
+                      icon: const Icon(Icons.login_rounded, color: Colors.white),
+                      label: const Text('Clock In', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 20),
 
           // Request Summary Statistics
-          if (requestsState.isLoading)
-            const Center(child: CircularProgressIndicator())
-          else
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'My Request Center',
-                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    _buildStatCard('Pending', requestsState.pendingCount.toString(), Colors.orange),
-                    const SizedBox(width: 10),
-                    _buildStatCard('Approved', requestsState.approvedCount.toString(), Colors.green),
-                    const SizedBox(width: 10),
-                    _buildStatCard('Rejected', requestsState.rejectedCount.toString(), Colors.red),
-                  ],
-                ),
-              ],
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'My Request Center',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  InkWell(
+                    onTap: () => context.push('/my-requests'),
+                    child: Text(
+                      'View All →',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _buildStatCard('Pending', requestsState.pendingCount.toString(), Colors.orange),
+                  const SizedBox(width: 10),
+                  _buildStatCard('Approved', requestsState.approvedCount.toString(), Colors.green),
+                  const SizedBox(width: 10),
+                  _buildStatCard('Rejected', requestsState.rejectedCount.toString(), Colors.red),
+                ],
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
 
           // Assigned Tasks Section
@@ -203,10 +392,17 @@ class DashboardScreen extends ConsumerWidget {
           tasksState.when(
             data: (tasks) {
               if (tasks.isEmpty) {
-                return Center(
+                return Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Text('No active tasks assigned to you.', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                    child: Center(
+                      child: Text('No active tasks assigned to you.', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                    ),
                   ),
                 );
               }
@@ -250,8 +446,30 @@ class DashboardScreen extends ConsumerWidget {
                 }).toList(),
               );
             },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, st) => Center(child: Text('Error loading tasks: $err')),
+            loading: () => Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            ),
+            error: (_, __) => Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Center(
+                  child: Text('No tasks at this time.', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -277,6 +495,33 @@ class DashboardScreen extends ConsumerWidget {
             Text(
               label,
               style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLeaveBadge(String label, String count, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              count,
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: color),
             ),
           ],
         ),
