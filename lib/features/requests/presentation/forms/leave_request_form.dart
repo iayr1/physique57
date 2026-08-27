@@ -177,18 +177,20 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
                       child: const Icon(Icons.person, color: AppColors.primary),
                     ),
                     const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user?.name ?? 'Alex Morgan',
-                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        Text(
-                          'ID: ${user?.id ?? 'EMP-8842'} • ${user?.department ?? 'Engineering'}',
-                          style: GoogleFonts.plusJakartaSans(color: AppColors.textSecondaryLight, fontSize: 13),
-                        ),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user?.name ?? '',
+                            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          Text(
+                            'ID: ${user?.id ?? ''} • ${user?.department ?? ''}',
+                            style: GoogleFonts.plusJakartaSans(color: AppColors.textSecondaryLight, fontSize: 13),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

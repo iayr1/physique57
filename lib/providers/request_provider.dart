@@ -92,11 +92,14 @@ class RequestsNotifier extends StateNotifier<RequestsState> {
   }
 
   Future<void> loadRequests() async {
+    final user = _ref.read(authProvider).value;
+    if (user == null) {
+      state = const RequestsState();
+      return;
+    }
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final user = _ref.read(authProvider).value;
-      final email = user?.email ?? 'alex.morgan@acmeglobal.com';
-      final list = await _repository.getEmployeeRequests(email);
+      final list = await _repository.getEmployeeRequests(user.email);
       state = state.copyWith(requests: list, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -153,5 +156,6 @@ class RequestsNotifier extends StateNotifier<RequestsState> {
 
 final requestsProvider = StateNotifierProvider<RequestsNotifier, RequestsState>((ref) {
   final repo = ref.watch(requestRepositoryProvider);
+  ref.watch(authProvider);
   return RequestsNotifier(repo, ref);
 });

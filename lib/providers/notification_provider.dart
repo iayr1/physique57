@@ -1,20 +1,34 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../features/notifications/data/firestore_notification_repository.dart';
 import '../features/notifications/data/notification_repository.dart';
 import '../features/notifications/domain/notification_model.dart';
 import '../features/requests/domain/request_model.dart';
+import 'auth_provider.dart';
+import 'theme_provider.dart';
 
-final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
-  return NotificationRepository();
+final notificationRepositoryProvider = Provider<INotificationRepository>((ref) {
+  final backendType = ref.watch(backendTypeProvider);
+  if (backendType == BackendType.firebase) {
+    return FirestoreNotificationRepository();
+  }
+  return MockNotificationRepository();
 });
 
 class NotificationNotifier extends StateNotifier<AsyncValue<List<NotificationModel>>> {
-  final NotificationRepository _repository;
+  final INotificationRepository _repository;
+  final Ref _ref;
 
-  NotificationNotifier(this._repository) : super(const AsyncValue.loading()) {
+  NotificationNotifier(this._repository, this._ref) : super(const AsyncValue.loading()) {
     loadNotifications();
   }
 
   Future<void> loadNotifications() async {
+    final user = _ref.read(authProvider).value;
+    if (user == null) {
+      state = const AsyncValue.data([]);
+      return;
+    }
+    
     try {
       final list = await _repository.getNotifications();
       state = AsyncValue.data(list);
@@ -50,7 +64,8 @@ class NotificationNotifier extends StateNotifier<AsyncValue<List<NotificationMod
 final notificationProvider =
     StateNotifierProvider<NotificationNotifier, AsyncValue<List<NotificationModel>>>((ref) {
   final repo = ref.watch(notificationRepositoryProvider);
-  return NotificationNotifier(repo);
+  ref.watch(authProvider);
+  return NotificationNotifier(repo, ref);
 });
 
 final unreadNotificationCountProvider = Provider<int>((ref) {

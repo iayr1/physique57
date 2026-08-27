@@ -49,12 +49,14 @@ class CustomButton extends StatelessWidget {
                     Icon(icon, size: 20, color: textColor ?? AppColors.primary),
                     const SizedBox(width: 8),
                   ],
-                  Text(
-                    text,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: textColor ?? AppColors.primary,
+                  Flexible(
+                    child: Text(
+                      text,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: textColor ?? AppColors.primary,
+                      ),
                     ),
                   ),
                 ],
@@ -88,12 +90,14 @@ class CustomButton extends StatelessWidget {
                   Icon(icon, size: 20, color: textColor ?? Colors.white),
                   const SizedBox(width: 8),
                 ],
-                Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: textColor ?? Colors.white,
+                Flexible(
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: textColor ?? Colors.white,
+                    ),
                   ),
                 ),
               ],

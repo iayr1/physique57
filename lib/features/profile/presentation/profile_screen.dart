@@ -48,8 +48,24 @@ class ProfileScreen extends ConsumerWidget {
                       child: CircleAvatar(
                         radius: 48,
                         backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                        backgroundImage: user != null ? NetworkImage(user.photoUrl) : null,
-                        child: user == null ? const Icon(Icons.person, size: 48, color: AppColors.primary) : null,
+                        child: user != null
+                            ? ClipOval(
+                                child: Image.network(
+                                  user.photoUrl,
+                                  width: 96,
+                                  height: 96,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Text(
+                                    user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : const Icon(Icons.person, size: 48, color: AppColors.primary),
                       ),
                     ),
                     Positioned(
@@ -74,7 +90,7 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  user?.name ?? 'Alex Morgan',
+                  user?.name ?? '',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
@@ -83,7 +99,7 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  user?.designation ?? 'Senior Software Engineer',
+                  user?.designation ?? '',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
@@ -92,7 +108,7 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 10),
                 Chip(
                   label: Text(
-                    user?.id ?? 'EMP-8842',
+                    user?.id ?? '',
                     style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
                   ),
                   backgroundColor: AppColors.primary.withValues(alpha: 0.1),
@@ -115,19 +131,41 @@ class ProfileScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.email_outlined, color: AppColors.primary),
                   title: Text('Email Address', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondaryLight)),
-                  subtitle: Text(user?.email ?? 'alex.morgan@acmeglobal.com', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: AppColors.textPrimaryLight)),
+                  subtitle: Text(user?.email ?? '', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: AppColors.textPrimaryLight)),
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 ListTile(
                   leading: const Icon(Icons.business_outlined, color: AppColors.primary),
                   title: Text('Department', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondaryLight)),
-                  subtitle: Text(user?.department ?? 'Engineering & Technology', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: AppColors.textPrimaryLight)),
+                  subtitle: Text(user?.department ?? '', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: AppColors.textPrimaryLight)),
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 ListTile(
                   leading: const Icon(Icons.supervisor_account_outlined, color: AppColors.primary),
                   title: Text('Reporting Manager', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondaryLight)),
-                  subtitle: Text('${user?.reportingManagerName} (${user?.reportingManagerEmail})', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: AppColors.textPrimaryLight)),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user?.reportingManagerName ?? '',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : AppColors.textPrimaryLight,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          user?.reportingManagerEmail ?? '',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -157,34 +195,79 @@ class ProfileScreen extends ConsumerWidget {
                   },
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                ListTile(
-                  leading: const Icon(Icons.cloud_sync_outlined, color: AppColors.primary),
-                  title: Text('Backend Repository Engine', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
-                  subtitle: Text(
-                    backendType == BackendType.mock
-                        ? 'Local Mock Repository (Offline Demo)'
-                        : 'Google Apps Script / Sheets API',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondaryLight),
-                  ),
-                  trailing: DropdownButton<BackendType>(
-                    value: backendType,
-                    underline: const SizedBox(),
-                    items: const [
-                      DropdownMenuItem(
-                        value: BackendType.mock,
-                        child: Text('Mock Engine'),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.cloud_sync_outlined, color: AppColors.primary),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              'Backend Repository Engine',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : AppColors.textPrimaryLight,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      DropdownMenuItem(
-                        value: BackendType.googleSheets,
-                        child: Text('Google Sheets API'),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(56, 0, 16, 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              backendType == BackendType.mock
+                                  ? 'Local Mock Repository (Offline Demo)'
+                                  : backendType == BackendType.googleSheets
+                                      ? 'Google Apps Script / Sheets API'
+                                      : 'Firebase Authentication & Firestore',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          DropdownButton<BackendType>(
+                            value: backendType,
+                            underline: const SizedBox(),
+                            dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: isDark ? Colors.white : AppColors.textPrimaryLight,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: BackendType.mock,
+                                child: Text('Mock Engine'),
+                              ),
+                              DropdownMenuItem(
+                                value: BackendType.googleSheets,
+                                child: Text('Google Sheets API'),
+                              ),
+                              DropdownMenuItem(
+                                value: BackendType.firebase,
+                                child: Text('Firebase Engine'),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                ref.read(backendTypeProvider.notifier).state = val;
+                              }
+                            },
+                          ),
+                        ],
                       ),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) {
-                        ref.read(backendTypeProvider.notifier).state = val;
-                      }
-                    },
-                  ),
+                    ),
+                  ],
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 ListTile(
@@ -197,7 +280,7 @@ class ProfileScreen extends ConsumerWidget {
                       builder: (ctx) => AlertDialog(
                         title: Text('ERMS Help & Support', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
                         content: Text(
-                          'For urgent requests or manager escalations, please contact the IT Service Desk at support@acmeglobal.com or call ext 4432.',
+                          'For urgent requests or manager escalations, please contact the System Administrator.',
                           style: GoogleFonts.plusJakartaSans(),
                         ),
                         actions: [

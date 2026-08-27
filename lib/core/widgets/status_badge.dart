@@ -96,7 +96,7 @@ class StatusBadge extends StatelessWidget {
           ),
           const SizedBox(width: 5),
           Text(
-            status.displayName,
+            compact ? status.compactDisplayName : status.displayName,
             style: TextStyle(
               color: textColor,
               fontSize: fontSize,

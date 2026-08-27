@@ -28,6 +28,7 @@ dependencies:
   google_fonts: ^6.2.1
   flutter_animate: ^4.5.0
   uuid: ^4.4.0
+  webview_flutter: ^4.8.0
 
 dev_dependencies:
   flutter_test:

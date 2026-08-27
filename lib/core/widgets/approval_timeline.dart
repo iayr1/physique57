@@ -76,14 +76,17 @@ class ApprovalTimeline extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            step.title,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                          Expanded(
+                            child: Text(
+                              step.title,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                          if (step.timestamp != null)
+                          if (step.timestamp != null) ...[
+                            const SizedBox(width: 8),
                             Text(
                               DateFormatter.formatDateTime(step.timestamp!),
                               style: GoogleFonts.plusJakartaSans(
@@ -93,6 +96,7 @@ class ApprovalTimeline extends StatelessWidget {
                                     : AppColors.textSecondaryLight,
                               ),
                             ),
+                          ],
                         ],
                       ),
                       if (step.actorName != null) ...[

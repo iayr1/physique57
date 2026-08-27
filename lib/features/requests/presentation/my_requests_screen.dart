@@ -149,35 +149,39 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            request.requestType.icon,
-                                            size: 20,
-                                            color: request.requestType.color,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            request.requestId,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 15,
-                                            ),
-                                          ),
-                                        ],
+                                      Icon(
+                                        request.requestType.icon,
+                                        size: 20,
+                                        color: request.requestType.color,
                                       ),
-                                      StatusBadge(status: request.status, compact: true),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        request.requestId,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
-                                    request.requestType.title,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          request.requestType.title,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      StatusBadge(status: request.status, compact: true),
+                                    ],
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -192,11 +196,13 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen>
                                     children: [
                                       const Icon(Icons.supervisor_account_outlined, size: 14, color: Colors.grey),
                                       const SizedBox(width: 4),
-                                      Text(
-                                        'Manager: ${request.managerEmail}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                      Expanded(
+                                        child: Text(
+                                          'Manager: ${request.managerEmail}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                          ),
                                         ),
                                       ),
                                     ],

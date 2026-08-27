@@ -1,6 +1,13 @@
 import '../domain/notification_model.dart';
 
-class NotificationRepository {
+abstract class INotificationRepository {
+  Future<List<NotificationModel>> getNotifications();
+  Future<void> markAsRead(String notificationId);
+  Future<void> markAllAsRead();
+  Future<void> addNotification(NotificationModel notification);
+}
+
+class MockNotificationRepository implements INotificationRepository {
   final List<NotificationModel> _notifications = [
     NotificationModel(
       id: 'NOTIF-001',
@@ -36,11 +43,13 @@ class NotificationRepository {
     ),
   ];
 
+  @override
   Future<List<NotificationModel>> getNotifications() async {
     await Future.delayed(const Duration(milliseconds: 200));
     return List.from(_notifications);
   }
 
+  @override
   Future<void> markAsRead(String notificationId) async {
     final index = _notifications.indexWhere((n) => n.id == notificationId);
     if (index != -1) {
@@ -48,13 +57,15 @@ class NotificationRepository {
     }
   }
 
+  @override
   Future<void> markAllAsRead() async {
     for (int i = 0; i < _notifications.length; i++) {
       _notifications[i] = _notifications[i].copyWith(isRead: true);
     }
   }
 
-  void addNotification(NotificationModel notification) {
+  @override
+  Future<void> addNotification(NotificationModel notification) async {
     _notifications.insert(0, notification);
   }
 }

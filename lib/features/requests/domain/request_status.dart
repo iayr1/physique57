@@ -26,6 +26,17 @@ enum RequestStatus {
     }
   }
 
+  String get compactDisplayName {
+    switch (this) {
+      case RequestStatus.pendingManagerApproval:
+        return 'Pending (Mgr)';
+      case RequestStatus.pendingHrApproval:
+        return 'Pending (HR)';
+      default:
+        return displayName;
+    }
+  }
+
   static RequestStatus fromString(String val) {
     return RequestStatus.values.firstWhere(
       (e) => e.name.toLowerCase() == val.toLowerCase() || e.displayName.toLowerCase() == val.toLowerCase(),

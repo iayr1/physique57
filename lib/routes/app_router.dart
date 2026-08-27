@@ -1,10 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../core/constants/app_colors.dart';
 import '../features/authentication/presentation/login_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
+import '../features/admin/presentation/admin_dashboard_screen.dart';
 import '../features/notifications/presentation/notifications_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/requests/presentation/categories_screen.dart';
@@ -18,27 +21,61 @@ import '../features/requests/presentation/forms/travel_request_form.dart';
 import '../features/requests/presentation/forms/wfh_form.dart';
 import '../features/requests/presentation/my_requests_screen.dart';
 import '../features/requests/presentation/request_detail_screen.dart';
+import '../features/authentication/presentation/splash_screen.dart';
+import '../features/authentication/presentation/onboarding_screen.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
+import '../providers/theme_provider.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
+  final hasCompletedOnboarding = ref.watch(hasCompletedOnboardingProvider);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/',
+    initialLocation: '/splash',
     redirect: (context, state) {
-      final isLoggedIn = authState.value != null;
+      final isLoggedIn = authState.valueOrNull != null;
       final isLoggingIn = state.matchedLocation == '/login';
+      final isSplash = state.matchedLocation == '/splash';
+      final isOnboarding = state.matchedLocation == '/onboarding';
 
-      if (!isLoggedIn && !isLoggingIn) return '/login';
-      if (isLoggedIn && isLoggingIn) return '/';
+      // Let splash screen flow bypass routing redirects
+      if (isSplash) return null;
+
+      if (!hasCompletedOnboarding) {
+        if (!isOnboarding) {
+          return '/onboarding';
+        }
+        return null;
+      }
+
+      // If onboarding is completed but user is not logged in
+      if (!isLoggedIn) {
+        if (isOnboarding) return '/login';
+        if (!isLoggingIn) return '/login';
+        return null;
+      }
+
+      // If user is logged in
+      if (isLoggedIn) {
+        if (isLoggingIn || isOnboarding) return '/';
+      }
+
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => const OnboardingScreen(),
+      ),
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
@@ -46,12 +83,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) {
+          if (kIsWeb) return child;
           return ScaffoldWithBottomNavBar(child: child);
         },
         routes: [
           GoRoute(
             path: '/',
-            builder: (context, state) => const DashboardScreen(),
+            builder: (context, state) => kIsWeb ? const AdminDashboardScreen() : const DashboardScreen(),
           ),
           GoRoute(
             path: '/categories',
@@ -162,14 +200,18 @@ class ScaffoldWithBottomNavBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final unreadCount = ref.watch(unreadNotificationCountProvider);
     final selectedIndex = _calculateSelectedIndex(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: child,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: const Border(
-            top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          color: isDark ? AppColors.surfaceDark : Colors.white,
+          border: Border(
+            top: BorderSide(
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+              width: 1,
+            ),
           ),
           boxShadow: [
             BoxShadow(
@@ -179,70 +221,101 @@ class ScaffoldWithBottomNavBar extends ConsumerWidget {
             ),
           ],
         ),
-        child: NavigationBar(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: (idx) => _onItemTapped(idx, context),
-          elevation: 0,
-          backgroundColor: Colors.white,
-          indicatorColor: AppColors.primary.withValues(alpha: 0.12),
-          height: 68,
-          destinations: [
-            const NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded, color: AppColors.primary),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.3),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
+        child: NavigationBarTheme(
+          data: NavigationBarThemeData(
+            height: 72,
+            backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+            indicatorColor: AppColors.primary.withValues(alpha: 0.12),
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+            labelTextStyle: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : AppColors.primary,
+                );
+              }
+              return GoogleFonts.plusJakartaSans(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: isDark ? AppColors.textSecondaryDark : const Color(0xFF64748B),
+              );
+            }),
+            iconTheme: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return IconThemeData(
+                  size: 22,
+                  color: isDark ? Colors.white : AppColors.primary,
+                );
+              }
+              return IconThemeData(
+                size: 22,
+                color: isDark ? AppColors.textSecondaryDark : const Color(0xFF64748B),
+              );
+            }),
+          ),
+          child: NavigationBar(
+            selectedIndex: selectedIndex,
+            onDestinationSelected: (idx) => _onItemTapped(idx, context),
+            elevation: 0,
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                ),
+                label: 'New',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long_rounded),
+                label: 'Requests',
+              ),
+              NavigationDestination(
+                icon: Stack(
+                  children: [
+                    const Icon(Icons.notifications_outlined),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            color: AppColors.statusRejected,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(minWidth: 10, minHeight: 10),
+                        ),
+                      ),
                   ],
                 ),
-                child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                selectedIcon: const Icon(Icons.notifications_rounded),
+                label: 'Alerts',
               ),
-              label: 'New Request',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long_rounded, color: AppColors.primary),
-              label: 'My Requests',
-            ),
-            NavigationDestination(
-              icon: Stack(
-                children: [
-                  const Icon(Icons.notifications_outlined),
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          color: AppColors.statusRejected,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(minWidth: 10, minHeight: 10),
-                      ),
-                    ),
-                ],
+              const NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Profile',
               ),
-              selectedIcon: const Icon(Icons.notifications_rounded, color: AppColors.primary),
-              label: 'Notifications',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(Icons.person_rounded, color: AppColors.primary),
-              label: 'Profile',
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

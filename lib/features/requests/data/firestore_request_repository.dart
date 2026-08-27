@@ -3,64 +3,49 @@ import '../domain/approval_step_model.dart';
 import '../domain/request_category_model.dart';
 import '../domain/request_model.dart';
 import '../domain/request_status.dart';
-import 'mock_request_repository.dart';
 import 'request_repository.dart';
 
 class FirestoreRequestRepository implements IRequestRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final MockRequestRepository _fallbackMock = MockRequestRepository();
 
   CollectionReference<Map<String, dynamic>> get _collection =>
       _firestore.collection('requests');
 
   @override
   Future<List<RequestModel>> getEmployeeRequests(String employeeEmail) async {
-    try {
-      final snapshot = await _collection
-          .where('employeeEmail', isEqualTo: employeeEmail)
-          .get()
-          .timeout(const Duration(seconds: 5));
+    final snapshot = await _collection
+        .where('employeeEmail', isEqualTo: employeeEmail)
+        .get();
 
-      if (snapshot.docs.isEmpty) {
-        // Return initial mock requests if Firestore collection is empty
-        return _fallbackMock.getEmployeeRequests(employeeEmail);
-      }
-
-      return snapshot.docs.map((doc) => _fromFirestore(doc.data())).toList();
-    } catch (_) {
-      // Fallback to local memory mock repository if offline or uninitialized
-      return _fallbackMock.getEmployeeRequests(employeeEmail);
+    if (snapshot.docs.isEmpty) {
+      return [];
     }
+
+    return snapshot.docs.map((doc) => _fromFirestore(doc.data())).toList();
   }
 
   @override
   Future<RequestModel> getRequestById(String requestId) async {
-    try {
-      final doc = await _collection.doc(requestId).get();
-      if (doc.exists && doc.data() != null) {
-        return _fromFirestore(doc.data()!);
-      }
-    } catch (_) {}
-    return _fallbackMock.getRequestById(requestId);
+    final doc = await _collection.doc(requestId).get();
+    if (doc.exists && doc.data() != null) {
+      return _fromFirestore(doc.data()!);
+    }
+    throw Exception('Request $requestId not found in Firestore');
   }
 
   @override
   Future<RequestModel> submitRequest(RequestModel newRequest) async {
-    try {
-      final data = _toFirestore(newRequest);
-      await _collection.doc(newRequest.requestId).set(data);
-    } catch (_) {}
-    return _fallbackMock.submitRequest(newRequest);
+    final data = _toFirestore(newRequest);
+    await _collection.doc(newRequest.requestId).set(data);
+    return newRequest;
   }
 
   @override
   Future<bool> cancelRequest(String requestId) async {
-    try {
-      await _collection.doc(requestId).update({
-        'status': RequestStatus.cancelled.name,
-      });
-    } catch (_) {}
-    return _fallbackMock.cancelRequest(requestId);
+    await _collection.doc(requestId).update({
+      'status': RequestStatus.cancelled.name,
+    });
+    return true;
   }
 
   RequestModel _fromFirestore(Map<String, dynamic> data) {
