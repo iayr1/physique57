@@ -43,7 +43,15 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
 
   int get _numberOfDays {
     if (_startDate != null && _endDate != null) {
-      return DateFormatter.calculateDaysBetween(_startDate!, _endDate!);
+      int count = 0;
+      DateTime cur = _startDate!;
+      while (!cur.isAfter(_endDate!)) {
+        if (cur.weekday != DateTime.saturday && cur.weekday != DateTime.sunday) {
+          count++;
+        }
+        cur = cur.add(const Duration(days: 1));
+      }
+      return count > 0 ? count : 1;
     }
     return 0;
   }

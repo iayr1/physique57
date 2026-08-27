@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,7 @@ class SplashScreen extends ConsumerStatefulWidget {
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
   Timer? _timer;
+  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -32,30 +34,25 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   void _startNavigationTimer() {
-    // Keep splash visible for at least 2.5 seconds for visual branding
-    _timer = Timer(const Duration(milliseconds: 2500), () {
-      if (mounted) {
+    _timer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted && !_hasNavigated) {
         _checkStatusAndNavigate();
       }
     });
   }
 
   void _checkStatusAndNavigate() {
-    if (!mounted) return;
+    if (!mounted || _hasNavigated) return;
+    _hasNavigated = true;
 
     final authState = ref.read(authProvider);
+    bool isLoggedIn = authState.valueOrNull != null;
+    try {
+      if (!isLoggedIn && FirebaseAuth.instance.currentUser != null) {
+        isLoggedIn = true;
+      }
+    } catch (_) {}
 
-    // If auth state is still loading, wait and retry shortly
-    if (authState.isLoading) {
-      _timer = Timer(const Duration(milliseconds: 200), () {
-        if (mounted) {
-          _checkStatusAndNavigate();
-        }
-      });
-      return;
-    }
-
-    final isLoggedIn = authState.valueOrNull != null;
     final hasCompletedOnboarding = ref.read(hasCompletedOnboardingProvider);
 
     if (isLoggedIn) {
@@ -72,140 +69,138 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: isDark
-              ? AppColors.cardGradient
-              : const LinearGradient(
-                  colors: [Color(0xFF6366F1), Color(0xFF4F46E5), Color(0xFF3730A3)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Ambient soft glowing background shapes
-            Positioned(
-              top: -100,
-              left: -100,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.05),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -150,
-              right: -50,
-              child: Container(
-                width: 350,
-                height: 350,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.03),
-                ),
-              ),
-            ),
-            
-            // Content
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Animated Enterprise Logo Badge
-                Container(
-                  width: 100,
-                  height: 100,
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _checkStatusAndNavigate,
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            gradient: isDark
+                ? AppColors.cardGradient
+                : const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFF4F46E5), Color(0xFF3730A3)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Background soft shapes
+              Positioned(
+                top: -100,
+                left: -100,
+                child: Container(
+                  width: 300,
+                  height: 300,
                   decoration: BoxDecoration(
-                    color: Colors.white,
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
+                    color: Colors.white.withValues(alpha: 0.05),
                   ),
-                  child: const Icon(
-                    Icons.corporate_fare_rounded,
-                    size: 52,
-                    color: AppColors.primary,
+                ),
+              ),
+              Positioned(
+                bottom: -150,
+                right: -50,
+                child: Container(
+                  width: 350,
+                  height: 350,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.03),
                   ),
-                )
-                .animate()
-                .fadeIn(duration: 800.ms)
-                .scale(delay: 200.ms, duration: 600.ms, curve: Curves.easeOutBack)
-                .then(delay: 400.ms)
-                .animate(onPlay: (controller) => controller.repeat(reverse: true))
-                .scaleXY(begin: 1.0, end: 1.06, duration: 1500.ms, curve: Curves.easeInOut),
-                
-                const SizedBox(height: 28),
-                
-                // Animated App Title
-                Text(
-                  'ERMS Mobile',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                )
-                .animate()
-                .fadeIn(delay: 500.ms, duration: 600.ms)
-                .slideY(begin: 0.2, end: 0, delay: 500.ms, duration: 600.ms, curve: Curves.easeOutQuad),
-                
-                const SizedBox(height: 6),
-                
-                // Animated App Description
-                Text(
-                  'Employee Request Management System',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white.withValues(alpha: 0.75),
-                  ),
-                )
-                .animate()
-                .fadeIn(delay: 700.ms, duration: 600.ms)
-                .slideY(begin: 0.2, end: 0, delay: 700.ms, duration: 600.ms, curve: Curves.easeOutQuad),
-              ],
-            ),
-            
-            // Bottom Loading Indicator
-            Positioned(
-              bottom: 60,
-              child: Column(
+                ),
+              ),
+              
+              // Content
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  // Enterprise Logo Badge
+                  Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 12),
+                    child: const Icon(
+                      Icons.corporate_fare_rounded,
+                      size: 48,
+                      color: AppColors.primary,
+                    ),
+                  )
+                  .animate()
+                  .fadeIn(duration: 500.ms)
+                  .scale(duration: 500.ms, curve: Curves.easeOutBack),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // App Title
                   Text(
-                    'Loading workspace...',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white.withValues(alpha: 0.5),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                    'Physique 57 ERMS',
+                    style: GoogleFonts.outfit(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: -0.5,
                     ),
-                  ),
+                  )
+                  .animate()
+                  .fadeIn(delay: 200.ms, duration: 400.ms)
+                  .slideY(begin: 0.2, end: 0, delay: 200.ms, duration: 400.ms),
+                  
+                  const SizedBox(height: 6),
+                  
+                  // App Description
+                  Text(
+                    'Employee Request Management System',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
+                  )
+                  .animate()
+                  .fadeIn(delay: 300.ms, duration: 400.ms),
                 ],
-              )
-              .animate()
-              .fadeIn(delay: 1000.ms, duration: 500.ms),
-            ),
-          ],
+              ),
+              
+              // Bottom Loading Indicator
+              Positioned(
+                bottom: 50,
+                child: Column(
+                  children: [
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Starting workspace...',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

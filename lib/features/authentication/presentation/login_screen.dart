@@ -114,7 +114,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       builder: (ctx) => AlertDialog(
         title: Text(
           'Setup or Reset Account Password',
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -137,7 +137,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text('Cancel', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
@@ -158,7 +158,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               );
             },
-            child: const Text('Send Password Setup Email'),
+            child: Text('Send Setup Link', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -229,10 +229,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       
                       const SizedBox(height: 20),
                       Text(
-                        'ERMS Mobile',
-                        style: GoogleFonts.plusJakartaSans(
+                        'Physique 57 ERMS',
+                        style: GoogleFonts.outfit(
                           fontSize: 26,
                           fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
                           color: isDark ? Colors.white : AppColors.primary,
                         ),
                       )
@@ -255,6 +256,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       .slideY(begin: 0.15, end: 0, delay: 160.ms, duration: 400.ms),
                       
                       if (!kIsWeb) ...[
+                        const SizedBox(height: 20),
                         // Auth Mode Segmented Control
                         Container(
                           padding: const EdgeInsets.all(4),
@@ -285,7 +287,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     child: Text(
                                       'Email & Password',
                                       textAlign: TextAlign.center,
-                                      style: GoogleFonts.plusJakartaSans(
+                                      style: GoogleFonts.outfit(
                                         fontSize: 13,
                                         fontWeight: FontWeight.bold,
                                         color: _authModeTab == 0
@@ -313,7 +315,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     child: Text(
                                       'Google Workspace',
                                       textAlign: TextAlign.center,
-                                      style: GoogleFonts.plusJakartaSans(
+                                      style: GoogleFonts.outfit(
                                         fontSize: 13,
                                         fontWeight: FontWeight.bold,
                                         color: _authModeTab == 1
@@ -374,9 +376,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       onPressed: _showSetupPasswordDialog,
                                       child: Text(
                                         'First time or setup password?',
-                                        style: GoogleFonts.plusJakartaSans(
+                                        style: GoogleFonts.outfit(
                                           fontSize: 12,
-                                          fontWeight: FontWeight.w700,
+                                          fontWeight: FontWeight.bold,
                                           color: AppColors.primary,
                                         ),
                                       ),
@@ -429,14 +431,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                               const SizedBox(width: 12),
                                               Text(
                                                 'Sign in with Google Workspace',
-                                                style: GoogleFonts.plusJakartaSans(
+                                                style: GoogleFonts.outfit(
                                                   fontSize: 15,
-                                                  fontWeight: FontWeight.w600,
+                                                  fontWeight: FontWeight.bold,
                                                 ),
                                               ),
                                             ],
                                           ),
-                                  ),
+                                    ),
                                   const SizedBox(height: 16),
                                 ],
                               ),

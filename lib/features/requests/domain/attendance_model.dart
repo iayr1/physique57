@@ -19,6 +19,23 @@ class AttendanceModel {
     required this.status,
   });
 
+  Duration? get duration {
+    if (checkInTime != null && checkOutTime != null) {
+      return checkOutTime!.difference(checkInTime!);
+    }
+    return null;
+  }
+
+  String get formattedDuration {
+    final d = duration;
+    if (d == null) return checkInTime != null ? 'In Progress' : '—';
+    final hours = d.inHours;
+    final mins = d.inMinutes.remainder(60);
+    return '${hours}h ${mins}m';
+  }
+
+  bool get isLate => status == 'Late';
+
   factory AttendanceModel.fromJson(Map<String, dynamic> json) {
     return AttendanceModel(
       id: json['id'] as String? ?? '',

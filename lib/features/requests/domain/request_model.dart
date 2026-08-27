@@ -110,4 +110,20 @@ class RequestModel {
       approvalHistory: approvalHistory ?? this.approvalHistory,
     );
   }
+
+  String get summaryText {
+    if (requestData.containsKey('reason')) {
+      return requestData['reason'].toString();
+    }
+    if (requestData.containsKey('leaveType')) {
+      return '${requestData['leaveType']} (${requestData['startDate'] ?? ''} - ${requestData['endDate'] ?? ''})';
+    }
+    if (requestData.containsKey('description')) {
+      return requestData['description'].toString();
+    }
+    if (requestData.containsKey('amount')) {
+      return '${requestData['expenseType'] ?? 'Expense'}: ₹${requestData['amount']}';
+    }
+    return requestType.title;
+  }
 }

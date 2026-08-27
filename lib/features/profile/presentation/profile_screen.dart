@@ -19,123 +19,167 @@ class ProfileScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: isDark ? AppColors.backgroundDark : const Color(0xFFF8FAFC),
       appBar: AppBar(
+        scrolledUnderElevation: 0,
+        backgroundColor: isDark ? AppColors.backgroundDark : const Color(0xFFF8FAFC),
+        elevation: 0,
         title: Text(
-          'Employee Profile',
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          'My Profile & Settings',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 19),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         children: [
-          // Avatar Card
-          Center(
+          // 1. Digital Employee ID Card
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.35),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Stack(
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        ],
-                      ),
-                      child: CircleAvatar(
-                        radius: 48,
-                        backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                        child: (user != null && user.photoUrl.isNotEmpty)
-                            ? ClipOval(
-                                child: Image.network(
-                                  user.photoUrl,
-                                  width: 96,
-                                  height: 96,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => Text(
-                                    user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : Text(
-                                (user != null && user.name.isNotEmpty) ? user.name[0].toUpperCase() : 'U',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          gradient: AppColors.primaryGradient,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.3),
-                              blurRadius: 6,
-                            ),
-                          ],
+                          child: const Icon(Icons.fitness_center_rounded, color: Colors.white, size: 16),
                         ),
-                        child: const Icon(Icons.badge, color: Colors.white, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          'PHYSIQUE 57',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.5,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: user?.isAdmin == true ? Colors.purple.withValues(alpha: 0.3) : Colors.blue.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: user?.isAdmin == true ? Colors.purpleAccent : Colors.lightBlueAccent,
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        user?.isAdmin == true ? 'ADMINISTRATOR' : 'STAFF MEMBER',
+                        style: GoogleFonts.outfit(
+                          color: user?.isAdmin == true ? Colors.purple[100] : Colors.lightBlue[100],
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  user?.name ?? '',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  user?.designation ?? '',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                  ),
-                ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 22),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Chip(
-                      label: Text(
-                        user?.id ?? '',
-                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
-                      ),
-                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                      side: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
+                    CircleAvatar(
+                      radius: 36,
+                      backgroundColor: Colors.white.withValues(alpha: 0.15),
+                      child: (user != null && user.photoUrl.isNotEmpty)
+                          ? ClipOval(
+                              child: Image.network(
+                                user.photoUrl,
+                                width: 72,
+                                height: 72,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => Text(
+                                  user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                                  style: GoogleFonts.outfit(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                              ),
+                            )
+                          : Text(
+                              (user != null && user.name.isNotEmpty) ? user.name[0].toUpperCase() : 'U',
+                              style: GoogleFonts.outfit(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
                     ),
-                    if (user?.isAdmin == true || user?.email.toLowerCase() == 'mayurailead@gmail.com') ...[
-                      const SizedBox(width: 8),
-                      Chip(
-                        label: Text(
-                          'Administrator',
-                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.purple),
-                        ),
-                        backgroundColor: Colors.purple.withValues(alpha: 0.1),
-                        side: BorderSide(color: Colors.purple.withValues(alpha: 0.2)),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user?.name ?? 'Employee',
+                            style: GoogleFonts.outfit(
+                              fontSize: 19,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            user?.designation.isNotEmpty == true ? user!.designation : 'Team Member',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[300]),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            user?.email ?? '',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[400]),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+                const Divider(height: 32, color: Colors.white24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('DEPARTMENT', style: GoogleFonts.outfit(fontSize: 9, color: Colors.grey[400], letterSpacing: 0.8, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 2),
+                        Text(
+                          user?.department.isNotEmpty == true ? user!.department : 'Operations',
+                          style: GoogleFonts.outfit(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('EMPLOYEE ID', style: GoogleFonts.outfit(fontSize: 9, color: Colors.grey[400], letterSpacing: 0.8, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 2),
+                        Text(
+                          user?.id.isNotEmpty == true ? user!.id : 'P57-EMP',
+                          style: GoogleFonts.outfit(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const Icon(Icons.qr_code_2_rounded, color: Colors.white70, size: 28),
                   ],
                 ),
               ],
@@ -143,25 +187,24 @@ class ProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
 
-          // Admin Portal Quick Action (if admin)
+          // 2. Admin Portal Shortcut (if admin)
           if (user?.isAdmin == true || user?.email.toLowerCase() == 'mayurailead@gmail.com') ...[
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: const BorderSide(color: Color(0xFFE2E8F0)),
+            Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF312E81), Color(0xFF4338CA)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
               ),
-              color: const Color(0xFF0F172A),
               child: ListTile(
                 leading: const Icon(Icons.admin_panel_settings_rounded, color: Colors.white),
                 title: Text(
-                  'Open Admin Management Portal',
-                  style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  'Open Administrator Dashboard',
+                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                 ),
-                subtitle: Text(
-                  'Review requests, onboard employees, and view logs',
-                  style: GoogleFonts.plusJakartaSans(color: Colors.grey[400], fontSize: 11),
-                ),
+                subtitle: Text('Manage users, leaves, attendance & broadcasts', style: GoogleFonts.plusJakartaSans(color: Colors.grey[200], fontSize: 11)),
                 trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 16),
                 onTap: () => context.push('/admin'),
               ),
@@ -169,17 +212,18 @@ class ProfileScreen extends ConsumerWidget {
             const SizedBox(height: 20),
           ],
 
-          // Leave Quotas Breakdown Section
-          Text('Leave Quota & Balances', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-          const SizedBox(height: 12),
+          // 3. Leave Quota Balances
+          Text('Leave Quota Balances', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(18),
               side: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
                   _buildQuotaRow(
@@ -209,96 +253,75 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // User Info Section
-          Text('Employment Information', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-          const SizedBox(height: 12),
+          // 4. Employment Details
+          Text('Organization & Reporting', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(18),
               side: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.email_outlined, color: AppColors.primary),
-                  title: Text('Email Address', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondaryLight)),
-                  subtitle: Text(user?.email ?? '', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: AppColors.textPrimaryLight)),
+                  leading: const Icon(Icons.supervisor_account_rounded, color: AppColors.primary),
+                  title: const Text('Reporting Manager', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  subtitle: Text(
+                    user?.reportingManagerName.isNotEmpty == true ? user!.reportingManagerName : 'Management',
+                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 ListTile(
-                  leading: const Icon(Icons.business_outlined, color: AppColors.primary),
-                  title: Text('Department', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondaryLight)),
-                  subtitle: Text(user?.department ?? '', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: AppColors.textPrimaryLight)),
-                ),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                ListTile(
-                  leading: const Icon(Icons.supervisor_account_outlined, color: AppColors.primary),
-                  title: Text('Reporting Manager', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondaryLight)),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user?.reportingManagerName ?? '',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white : AppColors.textPrimaryLight,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          user?.reportingManagerEmail ?? '',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                          ),
-                        ),
-                      ],
-                    ),
+                  leading: const Icon(Icons.mail_outline_rounded, color: AppColors.primary),
+                  title: const Text('Manager Email', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  subtitle: Text(
+                    user?.reportingManagerEmail.isNotEmpty == true ? user!.reportingManagerEmail : 'mayurailead@gmail.com',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Settings & Switchers
-          Text('Settings & Account Security', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-          const SizedBox(height: 12),
+          // 5. Settings & Security
+          Text('Security & Preferences', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(18),
               side: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             child: Column(
               children: [
-                // Change / Reset Password Action
                 ListTile(
                   leading: const Icon(Icons.lock_reset_rounded, color: AppColors.primary),
-                  title: Text('Change / Reset Password', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
-                  subtitle: Text('Send password reset link to your email', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondaryLight)),
-                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                  title: Text('Change / Reset Password', style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: const Text('Send password reset link to your email', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
                   onTap: () async {
                     if (user == null || user.email.isEmpty) return;
                     final confirm = await showDialog<bool>(
                       context: context,
                       builder: (ctx) => AlertDialog(
-                        title: Text('Reset Password?', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+                        title: Text('Reset Password?', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
                         content: Text(
-                          'A secure password reset link will be sent to ${user.email}. You can open the link in your email to set a new password.',
-                          style: GoogleFonts.plusJakartaSans(),
+                          'A password reset link will be sent to ${user.email}. Open the link to create a new password.',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 13),
                         ),
                         actions: [
-                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: GoogleFonts.outfit())),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
                             onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('Send Email', style: TextStyle(color: Colors.white)),
+                            child: Text('Send Link', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ),
@@ -310,7 +333,7 @@ class ProfileScreen extends ConsumerWidget {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Password reset link sent to ${user.email}! Check your inbox.'),
+                              content: Text('Password reset email sent to ${user.email}!'),
                               backgroundColor: AppColors.statusApproved,
                             ),
                           );
@@ -318,7 +341,7 @@ class ProfileScreen extends ConsumerWidget {
                       } catch (e) {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: AppColors.statusRejected),
+                            SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
                           );
                         }
                       }
@@ -328,37 +351,11 @@ class ProfileScreen extends ConsumerWidget {
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 SwitchListTile(
                   secondary: const Icon(Icons.dark_mode_outlined, color: AppColors.primary),
-                  title: Text('Dark Mode', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
-                  subtitle: Text('Enable low-light theme', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondaryLight)),
-                  value: themeMode == ThemeMode.dark ||
-                      (themeMode == ThemeMode.system && isDark),
+                  title: Text('Dark Theme', style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: const Text('Enable low-light mode', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  value: themeMode == ThemeMode.dark || (themeMode == ThemeMode.system && isDark),
                   onChanged: (val) {
-                    ref.read(themeModeProvider.notifier).state =
-                        val ? ThemeMode.dark : ThemeMode.light;
-                  },
-                ),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                ListTile(
-                  leading: const Icon(Icons.help_outline_rounded, color: AppColors.primary),
-                  title: Text('Help & Support FAQ', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
-                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Text('ERMS Help & Support', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-                        content: Text(
-                          'For urgent requests or manager escalations, please contact the System Administrator (mayurailead@gmail.com).',
-                          style: GoogleFonts.plusJakartaSans(),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: Text('Close', style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ),
-                    );
+                    ref.read(themeModeProvider.notifier).state = val ? ThemeMode.dark : ThemeMode.light;
                   },
                 ),
               ],
@@ -366,9 +363,9 @@ class ProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 28),
 
-          // Logout Button
+          // 6. Sign Out Button
           CustomButton(
-            text: 'Log Out',
+            text: 'Sign Out',
             isOutlined: true,
             backgroundColor: AppColors.statusRejected,
             textColor: AppColors.statusRejected,
@@ -377,6 +374,7 @@ class ProfileScreen extends ConsumerWidget {
               await ref.read(authProvider.notifier).signOut();
             },
           ),
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -399,7 +397,7 @@ class ProfileScreen extends ConsumerWidget {
         ),
         Text(
           '$remaining / $total Days',
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13, color: color),
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: color),
         ),
         const SizedBox(width: 8),
         Text(

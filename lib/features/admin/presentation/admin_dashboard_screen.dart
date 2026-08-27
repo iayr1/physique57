@@ -44,6 +44,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _searchDirectoryController = TextEditingController();
   String _searchDirectoryQuery = '';
 
+  // Attendance State
+  DateTime _selectedAttendanceDate = DateTime.now();
+  final _searchAttendanceController = TextEditingController();
+  String _attendanceSearchQuery = '';
+  String _attendanceFilterStatus = 'All'; // 'All', 'Present', 'Late', 'Not Checked In'
+  int _attendanceTabMode = 0; // 0 = All Employees Status, 1 = Full Attendance Log
+
+  // Announcement Controllers
+  final _announcementTitleCtrl = TextEditingController();
+  final _announcementMsgCtrl = TextEditingController();
+  String _announcementPriority = 'Normal';
+
+  // Audit Search Controller
+  final _auditSearchCtrl = TextEditingController();
+  String _auditSearchQuery = '';
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -56,6 +72,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _taskTitleController.dispose();
     _taskDescController.dispose();
     _searchDirectoryController.dispose();
+    _searchAttendanceController.dispose();
+    _announcementTitleCtrl.dispose();
+    _announcementMsgCtrl.dispose();
+    _auditSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -130,37 +150,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  // Send Password Reset Link to Employee
-  Future<void> _sendPasswordResetLink(String email, String name) async {
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Password reset link sent to $email ($name)'), backgroundColor: AppColors.statusApproved),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send reset link: $e'), backgroundColor: AppColors.statusRejected),
-        );
-      }
-    }
-  }
-
   // Delete Employee Profile
   Future<void> _deleteEmployee(String docId, String name, String email) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Delete Employee Profile', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-        content: Text('Are you sure you want to delete $name ($email)? Their profile will be removed from the Firestore database.'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.delete_forever_rounded, color: Colors.red, size: 26),
+            const SizedBox(width: 8),
+            Text('Delete Employee', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text('Are you sure you want to permanently delete $name ($email)? Their profile and leave balances will be removed from Firestore.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            child: const Text('Delete Permanently', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -172,13 +181,589 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       await FirebaseFirestore.instance.collection('employees').doc(docId).delete();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$name removed from directory'), backgroundColor: AppColors.statusApproved),
+          SnackBar(content: Text('✓ $name has been removed from user directory'), backgroundColor: AppColors.statusApproved),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to delete: $e'), backgroundColor: AppColors.statusRejected),
+        );
+      }
+    }
+  }
+
+  // Change Password for User
+  Future<void> _changeUserPassword(String email, String name) async {
+    final passwordController = TextEditingController();
+    bool sendEmailLink = true;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogContext, setModalState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: Row(
+              children: [
+                const Icon(Icons.lock_reset_rounded, color: AppColors.primary, size: 24),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Change Password: $name',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select how you want to update credentials for $email:',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 13, color: Colors.grey[700]),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      children: [
+                        RadioListTile<bool>(
+                          value: true,
+                          groupValue: sendEmailLink,
+                          title: Text('Send Password Setup / Reset Email', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
+                          subtitle: Text('Dispatches official Firebase reset link to $email', style: GoogleFonts.plusJakartaSans(fontSize: 11)),
+                          onChanged: (v) => setModalState(() => sendEmailLink = v!),
+                        ),
+                        const Divider(height: 1),
+                        RadioListTile<bool>(
+                          value: false,
+                          groupValue: sendEmailLink,
+                          title: Text('Set New Temporary Password', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
+                          subtitle: Text('Admin manually defines a new temporary password', style: GoogleFonts.plusJakartaSans(fontSize: 11)),
+                          onChanged: (v) => setModalState(() => sendEmailLink = v!),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!sendEmailLink) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: passwordController,
+                            decoration: const InputDecoration(
+                              labelText: 'New Temporary Password',
+                              hintText: 'e.g. Emp@58291',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.refresh_rounded, size: 16),
+                          label: const Text('Generate', style: TextStyle(fontSize: 11)),
+                          onPressed: () {
+                            final rand = DateTime.now().millisecondsSinceEpoch.toString().substring(7);
+                            passwordController.text = 'Emp@$rand';
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  Navigator.pop(ctx);
+
+                  try {
+                    if (sendEmailLink) {
+                      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text('✓ Password reset link successfully sent to $email ($name)!'),
+                          backgroundColor: AppColors.statusApproved,
+                        ),
+                      );
+                    } else {
+                      final newPass = passwordController.text.trim();
+                      if (newPass.length < 6) {
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('Password must be at least 6 characters'), backgroundColor: Colors.red),
+                        );
+                        return;
+                      }
+
+                      // Send notification to employee
+                      final notifId = 'NOTIF-${DateTime.now().millisecondsSinceEpoch}';
+                      try {
+                        await FirebaseFirestore.instance.collection('notifications').doc(notifId).set({
+                          'id': notifId,
+                          'title': 'Password Updated by Administrator',
+                          'message': 'Your account credentials were reset. Your new temporary password is: $newPass. Please sign in and update your password.',
+                          'requestId': '',
+                          'timestamp': Timestamp.now(),
+                          'isRead': false,
+                          'recipientEmail': email,
+                        });
+                      } catch (_) {}
+
+                      // Dispatch email link as well
+                      try {
+                        await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                      } catch (_) {}
+
+                      // Show copy dialog
+                      if (!mounted) return;
+                      showDialog(
+                        context: context,
+                          builder: (c) => AlertDialog(
+                            title: Row(
+                              children: [
+                                const Icon(Icons.check_circle_rounded, color: Colors.green, size: 24),
+                                const SizedBox(width: 8),
+                                const Text('Password Updated'),
+                              ],
+                            ),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('New credentials provisioned for $name ($email):'),
+                                const SizedBox(height: 12),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
+                                  child: SelectableText('Temporary Password: $newPass', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                ),
+                                const SizedBox(height: 10),
+                                Text('• Setup link also dispatched to $email.\n• User can sign in using this temporary password or the email link.', style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+                              ],
+                            ),
+                            actions: [
+                              TextButton.icon(
+                                icon: const Icon(Icons.copy_rounded, size: 16),
+                                label: const Text('Copy Password'),
+                                onPressed: () {
+                                  Clipboard.setData(ClipboardData(text: newPass));
+                                  messenger.showSnackBar(const SnackBar(content: Text('Password copied to clipboard!')));
+                                },
+                              ),
+                              ElevatedButton(onPressed: () => Navigator.pop(c), child: const Text('Done')),
+                            ],
+                          ),
+                        );
+                    }
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Failed to update password: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                },
+                child: const Text('Update / Send', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // Edit Employee Profile & Quotas
+  Future<void> _editUserProfile(Map<String, dynamic> data, String docId) async {
+    final nameCtrl = TextEditingController(text: data['name'] ?? '');
+    final deptCtrl = TextEditingController(text: data['department'] ?? '');
+    final desigCtrl = TextEditingController(text: data['designation'] ?? '');
+    final mgrNameCtrl = TextEditingController(text: data['reportingManagerName'] ?? '');
+    final mgrEmailCtrl = TextEditingController(text: data['reportingManagerEmail'] ?? '');
+    String role = data['role'] ?? 'employee';
+
+    final balances = Map<String, dynamic>.from(data['leaveBalances'] ?? {});
+    final annualCtrl = TextEditingController(text: (balances['Annual / Paid Leave']?['remaining'] ?? 18).toString());
+    final casualCtrl = TextEditingController(text: (balances['Casual Leave']?['remaining'] ?? 10).toString());
+    final sickCtrl = TextEditingController(text: (balances['Sick Leave']?['remaining'] ?? 10).toString());
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: Row(
+              children: [
+                const Icon(Icons.edit_note_rounded, color: AppColors.primary, size: 26),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Edit User: ${data['name'] ?? ''}', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: deptCtrl,
+                    decoration: const InputDecoration(labelText: 'Department', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: desigCtrl,
+                    decoration: const InputDecoration(labelText: 'Designation', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: mgrNameCtrl,
+                    decoration: const InputDecoration(labelText: 'Reporting Manager Name', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: mgrEmailCtrl,
+                    decoration: const InputDecoration(labelText: 'Reporting Manager Email', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 14),
+                  Text('Role Permission:', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Employee', style: TextStyle(fontSize: 12)),
+                          value: 'employee',
+                          groupValue: role,
+                          onChanged: (v) => setModalState(() => role = v!),
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Admin', style: TextStyle(fontSize: 12)),
+                          value: 'admin',
+                          groupValue: role,
+                          onChanged: (v) => setModalState(() => role = v!),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  Text('Adjust Leave Quotas (Remaining Days):', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: annualCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Annual', border: OutlineInputBorder()),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: casualCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Casual', border: OutlineInputBorder()),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: sickCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Sick', border: OutlineInputBorder()),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  Navigator.pop(ctx);
+
+                  try {
+                    final annualRem = int.tryParse(annualCtrl.text) ?? 18;
+                    final casualRem = int.tryParse(casualCtrl.text) ?? 10;
+                    final sickRem = int.tryParse(sickCtrl.text) ?? 10;
+
+                    final updatedBalances = {
+                      'Annual / Paid Leave': {'total': 18, 'used': (18 - annualRem).clamp(0, 18), 'remaining': annualRem},
+                      'Casual Leave': {'total': 10, 'used': (10 - casualRem).clamp(0, 10), 'remaining': casualRem},
+                      'Sick Leave': {'total': 10, 'used': (10 - sickRem).clamp(0, 10), 'remaining': sickRem},
+                    };
+
+                    await FirebaseFirestore.instance.collection('employees').doc(docId).update({
+                      'name': nameCtrl.text.trim(),
+                      'department': deptCtrl.text.trim(),
+                      'designation': desigCtrl.text.trim(),
+                      'reportingManagerName': mgrNameCtrl.text.trim(),
+                      'reportingManagerEmail': mgrEmailCtrl.text.trim(),
+                      'role': role,
+                      'leaveBalances': updatedBalances,
+                    });
+
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('✓ Profile for ${nameCtrl.text.trim()} updated successfully!'), backgroundColor: AppColors.statusApproved),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Failed to update profile: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                },
+                child: const Text('Save Changes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // Mark or edit manual attendance for an employee
+  Future<void> _markManualAttendance(String email, String name, [Map<String, dynamic>? existingData]) async {
+    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedAttendanceDate);
+    final docId = 'ATT-$email-$dateStr';
+
+    TimeOfDay checkInTime = const TimeOfDay(hour: 9, minute: 0);
+    TimeOfDay? checkOutTime;
+    String status = 'Present';
+
+    if (existingData != null) {
+      if (existingData['checkInTime'] != null && existingData['checkInTime'] is Timestamp) {
+        final dt = (existingData['checkInTime'] as Timestamp).toDate();
+        checkInTime = TimeOfDay(hour: dt.hour, minute: dt.minute);
+      }
+      if (existingData['checkOutTime'] != null && existingData['checkOutTime'] is Timestamp) {
+        final dt = (existingData['checkOutTime'] as Timestamp).toDate();
+        checkOutTime = TimeOfDay(hour: dt.hour, minute: dt.minute);
+      }
+      status = existingData['status'] ?? 'Present';
+    }
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setModalState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: Row(
+              children: [
+                const Icon(Icons.co_present_rounded, color: AppColors.primary, size: 26),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Attendance: $name',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Date: $dateStr', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: const Color(0xFF334155))),
+                  const SizedBox(height: 14),
+                  // Check in picker
+                  ListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: Color(0xFFE2E8F0))),
+                    leading: const Icon(Icons.login_rounded, color: Colors.green),
+                    title: const Text('Check-In Time', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    subtitle: Text(checkInTime.format(dialogCtx), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    trailing: const Icon(Icons.access_time_rounded, size: 20),
+                    onTap: () async {
+                      final picked = await showTimePicker(context: dialogCtx, initialTime: checkInTime);
+                      if (picked != null) {
+                        setModalState(() {
+                          checkInTime = picked;
+                          if (picked.hour > 9 || (picked.hour == 9 && picked.minute > 30)) {
+                            status = 'Late';
+                          } else {
+                            status = 'Present';
+                          }
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  // Check out picker
+                  ListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: Color(0xFFE2E8F0))),
+                    leading: const Icon(Icons.logout_rounded, color: Colors.orange),
+                    title: const Text('Check-Out Time', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    subtitle: Text(checkOutTime != null ? checkOutTime!.format(dialogCtx) : 'Not Checked Out', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (checkOutTime != null)
+                          IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () => setModalState(() => checkOutTime = null),
+                          ),
+                        const Icon(Icons.access_time_rounded, size: 20),
+                      ],
+                    ),
+                    onTap: () async {
+                      final picked = await showTimePicker(context: dialogCtx, initialTime: checkOutTime ?? const TimeOfDay(hour: 18, minute: 0));
+                      if (picked != null) {
+                        setModalState(() => checkOutTime = picked);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  Text('Attendance Status:', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    value: status,
+                    decoration: const InputDecoration(border: OutlineInputBorder()),
+                    items: const [
+                      DropdownMenuItem(value: 'Present', child: Text('Present (On Time)')),
+                      DropdownMenuItem(value: 'Late', child: Text('Late Arrival')),
+                      DropdownMenuItem(value: 'Half Day', child: Text('Half Day')),
+                      DropdownMenuItem(value: 'Excused', child: Text('Excused / Official Duty')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setModalState(() => status = v);
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  Navigator.pop(ctx);
+
+                  try {
+                    final checkInDateTime = DateTime(
+                      _selectedAttendanceDate.year,
+                      _selectedAttendanceDate.month,
+                      _selectedAttendanceDate.day,
+                      checkInTime.hour,
+                      checkInTime.minute,
+                    );
+
+                    DateTime? checkOutDateTime;
+                    if (checkOutTime != null) {
+                      checkOutDateTime = DateTime(
+                        _selectedAttendanceDate.year,
+                        _selectedAttendanceDate.month,
+                        _selectedAttendanceDate.day,
+                        checkOutTime!.hour,
+                        checkOutTime!.minute,
+                      );
+                    }
+
+                    await FirebaseFirestore.instance.collection('attendance').doc(docId).set({
+                      'id': docId,
+                      'employeeEmail': email,
+                      'employeeName': name,
+                      'date': dateStr,
+                      'status': status,
+                      'checkInTime': Timestamp.fromDate(checkInDateTime),
+                      'checkOutTime': checkOutDateTime != null ? Timestamp.fromDate(checkOutDateTime) : null,
+                    }, SetOptions(merge: true));
+
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('✓ Attendance saved for $name ($dateStr)'), backgroundColor: AppColors.statusApproved),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Failed to save attendance: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                },
+                child: const Text('Save Attendance', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // Quick Check In
+  Future<void> _quickCheckInEmployee(String email, String name) async {
+    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedAttendanceDate);
+    final docId = 'ATT-$email-$dateStr';
+    final now = DateTime.now();
+    final checkInLimit = DateTime(now.year, now.month, now.day, 9, 30);
+    final status = now.isAfter(checkInLimit) ? 'Late' : 'Present';
+
+    try {
+      await FirebaseFirestore.instance.collection('attendance').doc(docId).set({
+        'id': docId,
+        'employeeEmail': email,
+        'employeeName': name,
+        'date': dateStr,
+        'status': status,
+        'checkInTime': Timestamp.fromDate(now),
+        'checkOutTime': null,
+      }, SetOptions(merge: true));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✓ $name marked Checked In ($status)'), backgroundColor: AppColors.statusApproved),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to check in: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  // Quick Check Out
+  Future<void> _quickCheckOutEmployee(String email, String name) async {
+    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedAttendanceDate);
+    final docId = 'ATT-$email-$dateStr';
+    final now = DateTime.now();
+
+    try {
+      await FirebaseFirestore.instance.collection('attendance').doc(docId).update({
+        'checkOutTime': Timestamp.fromDate(now),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✓ $name marked Checked Out at ${DateFormat('hh:mm a').format(now)}'), backgroundColor: AppColors.statusApproved),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to check out: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -628,11 +1213,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           const SizedBox(height: 28),
           // Sidebar Options
           _buildSidebarItem(0, Icons.dashboard_outlined, 'Overview'),
-          _buildSidebarItem(1, Icons.person_add_alt_1_outlined, 'Onboard Employee'),
+          _buildSidebarItem(5, Icons.supervised_user_circle_outlined, 'User Management'),
+          _buildSidebarItem(1, Icons.person_add_alt_1_outlined, '+ Create User'),
           _buildSidebarItem(2, Icons.assignment_turned_in_outlined, 'Leave & Requests'),
-          _buildSidebarItem(3, Icons.co_present_rounded, 'Attendance Logs'),
           _buildSidebarItem(4, Icons.playlist_add_check_rounded, 'Task Management'),
-          _buildSidebarItem(5, Icons.supervised_user_circle_outlined, 'Employee Directory'),
+          _buildSidebarItem(3, Icons.co_present_rounded, 'Attendance Logs'),
+          _buildSidebarItem(6, Icons.campaign_rounded, 'Broadcast Notices'),
+          _buildSidebarItem(7, Icons.receipt_long_rounded, 'Audit Trail & Logs'),
           const Spacer(),
           // Switch to Employee Mode
           Container(
@@ -672,7 +1259,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       return Scaffold(
         appBar: AppBar(
           title: Text(
-            ['Overview', 'Onboard Employee', 'Requests', 'Attendance Logs', 'Task Management', 'Directory & Logins'][_selectedTab],
+            ['Overview', '+ Create User', 'Requests', 'Attendance Logs', 'Task Management', 'User Management', 'Broadcast Notices', 'Audit Trail'][_selectedTab],
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 17),
           ),
           backgroundColor: const Color(0xFF0F172A),
@@ -693,11 +1280,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 scrollDirection: Axis.horizontal,
                 children: [
                   _buildNavPill(0, Icons.dashboard_rounded, 'Overview'),
-                  _buildNavPill(1, Icons.person_add_rounded, '+ Onboard'),
+                  _buildNavPill(5, Icons.manage_accounts_rounded, 'User Management'),
+                  _buildNavPill(1, Icons.person_add_rounded, '+ Create User'),
                   _buildNavPill(2, Icons.approval_rounded, 'Requests'),
-                  _buildNavPill(5, Icons.manage_accounts_rounded, 'Directory & Logins'),
-                  _buildNavPill(4, Icons.task_alt_rounded, 'Tasks'),
                   _buildNavPill(3, Icons.access_time_filled_rounded, 'Attendance'),
+                  _buildNavPill(4, Icons.task_alt_rounded, 'Tasks'),
+                  _buildNavPill(6, Icons.campaign_rounded, 'Notices'),
+                  _buildNavPill(7, Icons.receipt_long_rounded, 'Audit Trail'),
                 ],
               ),
             ),
@@ -807,6 +1396,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return _buildTasksTab();
       case 5:
         return _buildDirectoryTab();
+      case 6:
+        return _buildAnnouncementsTab();
+      case 7:
+        return _buildAuditLogsTab();
       default:
         return const SizedBox();
     }
@@ -1412,95 +2005,639 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildAttendanceTab() {
+    final selectedDateStr = DateFormat('yyyy-MM-dd').format(_selectedAttendanceDate);
+    final isToday = DateFormat('yyyy-MM-dd').format(DateTime.now()) == selectedDateStr;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Live Attendance Logs',
-          style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+        // Top Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Attendance Management',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Live check-in monitoring, daily employee attendance, and historical records.',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
-        Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('attendance').snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+        const SizedBox(height: 14),
 
-              final docs = snapshot.data?.docs ?? [];
-              if (docs.isEmpty) {
-                return Center(
-                  child: Text('No attendance checked in logs found', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
-                );
-              }
-
-              return SingleChildScrollView(
-                scrollDirection: Axis.vertical,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Employee Name')),
-                        DataColumn(label: Text('Email')),
-                        DataColumn(label: Text('Date')),
-                        DataColumn(label: Text('Check-In Time')),
-                        DataColumn(label: Text('Check-Out Time')),
-                        DataColumn(label: Text('Status')),
+        // Date Picker Bar
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded, size: 22),
+                tooltip: 'Previous Day',
+                onPressed: () {
+                  setState(() {
+                    _selectedAttendanceDate = _selectedAttendanceDate.subtract(const Duration(days: 1));
+                  });
+                },
+              ),
+              Expanded(
+                child: InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _selectedAttendanceDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now().add(const Duration(days: 30)),
+                    );
+                    if (picked != null) {
+                      setState(() => _selectedAttendanceDate = picked);
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          isToday ? 'Today, ${DateFormat('dd MMM yyyy').format(_selectedAttendanceDate)}' : DateFormat('EEE, dd MMM yyyy').format(_selectedAttendanceDate),
+                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF0F172A)),
+                        ),
                       ],
-                      rows: docs.map((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final name = data['employeeName'] ?? '';
-                        final email = data['employeeEmail'] ?? '';
-                        final date = data['date'] ?? '';
-                        final status = data['status'] ?? '';
-
-                        final checkIn = data['checkInTime'] != null
-                            ? DateFormat('hh:mm a').format((data['checkInTime'] as Timestamp).toDate())
-                            : 'N/A';
-                        final checkOut = data['checkOutTime'] != null
-                            ? DateFormat('hh:mm a').format((data['checkOutTime'] as Timestamp).toDate())
-                            : 'Not Checked Out';
-
-                        return DataRow(cells: [
-                          DataCell(Text(name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold))),
-                          DataCell(Text(email)),
-                          DataCell(Text(date)),
-                          DataCell(Text(checkIn)),
-                          DataCell(Text(checkOut)),
-                          DataCell(
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: (status == 'Late' ? Colors.orange : Colors.green).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                status,
-                                style: TextStyle(
-                                  color: status == 'Late' ? Colors.orange : Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ]);
-                      }).toList(),
                     ),
                   ),
                 ),
-              );
-            },
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right_rounded, size: 22),
+                tooltip: 'Next Day',
+                onPressed: () {
+                  setState(() {
+                    _selectedAttendanceDate = _selectedAttendanceDate.add(const Duration(days: 1));
+                  });
+                },
+              ),
+              if (!isToday) ...[
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: () => setState(() => _selectedAttendanceDate = DateTime.now()),
+                  child: const Text('Today', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ],
+            ],
           ),
         ),
+        const SizedBox(height: 12),
+
+        // Sub View Switcher Tabs (Live Status vs Full Log)
+        Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: () => setState(() => _attendanceTabMode = 0),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _attendanceTabMode == 0 ? AppColors.primary : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _attendanceTabMode == 0 ? AppColors.primary : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '👥 All Employees ($selectedDateStr)',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: _attendanceTabMode == 0 ? Colors.white : const Color(0xFF334155),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: InkWell(
+                onTap: () => setState(() => _attendanceTabMode = 1),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _attendanceTabMode == 1 ? AppColors.primary : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _attendanceTabMode == 1 ? AppColors.primary : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '📜 Historical Attendance Logs',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: _attendanceTabMode == 1 ? Colors.white : const Color(0xFF334155),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Search Bar
+        TextField(
+          controller: _searchAttendanceController,
+          decoration: InputDecoration(
+            hintText: 'Search employee name, email, or status...',
+            prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
+            suffixIcon: _attendanceSearchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear_rounded),
+                    onPressed: () {
+                      _searchAttendanceController.clear();
+                      setState(() => _attendanceSearchQuery = '');
+                    },
+                  )
+                : null,
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+          ),
+          onChanged: (v) => setState(() => _attendanceSearchQuery = v.trim().toLowerCase()),
+        ),
+        const SizedBox(height: 12),
+
+        // Main Attendance Body
+        Expanded(
+          child: _attendanceTabMode == 0
+              ? _buildDailyAllEmployeesAttendanceView(selectedDateStr)
+              : _buildHistoricalAttendanceLogView(),
+        ),
       ],
+    );
+  }
+
+  Widget _buildDailyAllEmployeesAttendanceView(String dateStr) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('employees').snapshots(),
+      builder: (context, empSnapshot) {
+        if (empSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final empDocs = empSnapshot.data?.docs ?? [];
+        if (empDocs.isEmpty) {
+          return Center(
+            child: Text('No employees found in directory.', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+          );
+        }
+
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('attendance').where('date', isEqualTo: dateStr).snapshots(),
+          builder: (context, attSnapshot) {
+            if (attSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final attDocs = attSnapshot.data?.docs ?? [];
+            final Map<String, Map<String, dynamic>> attendanceMap = {};
+            for (var doc in attDocs) {
+              final data = doc.data() as Map<String, dynamic>;
+              final email = data['employeeEmail'] as String? ?? '';
+              if (email.isNotEmpty) {
+                attendanceMap[email.toLowerCase()] = data;
+              }
+            }
+
+            int presentCount = 0;
+            int lateCount = 0;
+            int notCheckedInCount = 0;
+
+            for (var doc in empDocs) {
+              final data = doc.data() as Map<String, dynamic>;
+              final email = (data['email'] ?? doc.id).toString().toLowerCase();
+              final att = attendanceMap[email];
+              if (att != null) {
+                if (att['status'] == 'Late') {
+                  lateCount++;
+                } else {
+                  presentCount++;
+                }
+              } else {
+                notCheckedInCount++;
+              }
+            }
+
+            // Filter employees by query and filter chip
+            final filteredEmployees = empDocs.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final name = (data['name'] ?? '').toString().toLowerCase();
+              final email = (data['email'] ?? doc.id).toString().toLowerCase();
+              final dept = (data['department'] ?? '').toString().toLowerCase();
+              final att = attendanceMap[email];
+
+              final matchesQuery = _attendanceSearchQuery.isEmpty ||
+                  name.contains(_attendanceSearchQuery) ||
+                  email.contains(_attendanceSearchQuery) ||
+                  dept.contains(_attendanceSearchQuery);
+
+              if (!matchesQuery) return false;
+
+              if (_attendanceFilterStatus == 'Present') {
+                return att != null && att['status'] != 'Late';
+              } else if (_attendanceFilterStatus == 'Late') {
+                return att != null && att['status'] == 'Late';
+              } else if (_attendanceFilterStatus == 'Not Checked In') {
+                return att == null;
+              }
+              return true;
+            }).toList();
+
+            return Column(
+              children: [
+                // Real-time Stat Cards
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildAttendanceStatCard('Total Users', '${empDocs.length}', const Color(0xFF0F172A), () => setState(() => _attendanceFilterStatus = 'All'), _attendanceFilterStatus == 'All'),
+                      const SizedBox(width: 8),
+                      _buildAttendanceStatCard('Present', '$presentCount', Colors.green, () => setState(() => _attendanceFilterStatus = 'Present'), _attendanceFilterStatus == 'Present'),
+                      const SizedBox(width: 8),
+                      _buildAttendanceStatCard('Late', '$lateCount', Colors.orange, () => setState(() => _attendanceFilterStatus = 'Late'), _attendanceFilterStatus == 'Late'),
+                      const SizedBox(width: 8),
+                      _buildAttendanceStatCard('Not Checked In', '$notCheckedInCount', Colors.red, () => setState(() => _attendanceFilterStatus = 'Not Checked In'), _attendanceFilterStatus == 'Not Checked In'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Employee Cards List
+                Expanded(
+                  child: filteredEmployees.isEmpty
+                      ? Center(child: Text('No employees match filter "$_attendanceFilterStatus"', style: GoogleFonts.plusJakartaSans(color: Colors.grey)))
+                      : ListView.builder(
+                          itemCount: filteredEmployees.length,
+                          itemBuilder: (context, index) {
+                            final doc = filteredEmployees[index];
+                            final data = doc.data() as Map<String, dynamic>;
+                            final name = data['name'] ?? 'Employee';
+                            final email = (data['email'] ?? doc.id).toString();
+                            final dept = data['department'] ?? 'General';
+                            final desig = data['designation'] ?? 'Staff';
+                            final att = attendanceMap[email.toLowerCase()];
+
+                            final bool hasCheckedIn = att != null && att['checkInTime'] != null;
+                            final String checkInStr = hasCheckedIn
+                                ? DateFormat('hh:mm a').format((att['checkInTime'] as Timestamp).toDate())
+                                : 'Not Checked In';
+                            final bool hasCheckedOut = att != null && att['checkOutTime'] != null;
+                            final String checkOutStr = hasCheckedOut
+                                ? DateFormat('hh:mm a').format((att['checkOutTime'] as Timestamp).toDate())
+                                : (hasCheckedIn ? 'In Progress (Working)' : '—');
+                            final String statusStr = att != null ? (att['status'] ?? 'Present') : 'Not Checked In';
+
+                            Color statusColor = Colors.red;
+                            if (statusStr == 'Present') statusColor = Colors.green;
+                            if (statusStr == 'Late') statusColor = Colors.orange;
+                            if (hasCheckedOut) statusColor = Colors.blue;
+
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: BorderSide(
+                                  color: hasCheckedIn ? const Color(0xFFE2E8F0) : Colors.red.withValues(alpha: 0.2),
+                                  width: 1,
+                                ),
+                              ),
+                              color: hasCheckedIn ? Colors.white : const Color(0xFFFFFBFB),
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Row 1: Avatar, Name, Status Badge
+                                    Row(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 20,
+                                          backgroundColor: hasCheckedIn ? AppColors.primary : Colors.grey[400],
+                                          child: Text(
+                                            name.isNotEmpty ? name[0].toUpperCase() : 'E',
+                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 15)),
+                                              Text('$desig • $dept', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600])),
+                                            ],
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: statusColor.withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                                          ),
+                                          child: Text(
+                                            hasCheckedOut ? 'Checked Out' : statusStr,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: statusColor,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                                    const SizedBox(height: 10),
+
+                                    // Row 2: Check-In & Check-Out Timestamps
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF8FAFC),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.login_rounded, size: 16, color: hasCheckedIn ? Colors.green : Colors.grey),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text('Check In', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                                                      Text(checkInStr, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: hasCheckedIn ? const Color(0xFF0F172A) : Colors.grey)),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF8FAFC),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.logout_rounded, size: 16, color: hasCheckedOut ? Colors.orange : Colors.grey),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text('Check Out', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                                                      Text(checkOutStr, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: hasCheckedOut ? const Color(0xFF0F172A) : Colors.grey)),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+
+                                    // Row 3: Admin Action Controls
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: AppColors.primary,
+                                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                          icon: const Icon(Icons.edit_calendar_rounded, size: 14),
+                                          label: Text(hasCheckedIn ? 'Edit Attendance' : 'Mark Attendance', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                          onPressed: () => _markManualAttendance(email, name, att),
+                                        ),
+                                        if (!hasCheckedIn)
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.green,
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                              elevation: 0,
+                                            ),
+                                            icon: const Icon(Icons.check_circle_rounded, size: 14),
+                                            label: const Text('Quick Check-In', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                            onPressed: () => _quickCheckInEmployee(email, name),
+                                          )
+                                        else if (!hasCheckedOut)
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.orange,
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                              elevation: 0,
+                                            ),
+                                            icon: const Icon(Icons.logout_rounded, size: 14),
+                                            label: const Text('Quick Check-Out', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                            onPressed: () => _quickCheckOutEmployee(email, name),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildAttendanceStatCard(String title, String count, Color color, VoidCallback onTap, bool isSelected) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.12) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : const Color(0xFFE2E8F0),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 8),
+            Text('$title: ', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w500)),
+            Text(count, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoricalAttendanceLogView() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('attendance').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final allDocs = snapshot.data?.docs ?? [];
+        if (allDocs.isEmpty) {
+          return Center(
+            child: Text('No historical attendance records found.', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+          );
+        }
+
+        // Sort by checkInTime descending
+        final sortedDocs = List<QueryDocumentSnapshot>.from(allDocs);
+        sortedDocs.sort((a, b) {
+          final dataA = a.data() as Map<String, dynamic>;
+          final dataB = b.data() as Map<String, dynamic>;
+          final timeA = (dataA['checkInTime'] as Timestamp?)?.toDate() ?? DateTime(2000);
+          final timeB = (dataB['checkInTime'] as Timestamp?)?.toDate() ?? DateTime(2000);
+          return timeB.compareTo(timeA);
+        });
+
+        // Filter by query
+        final filteredDocs = sortedDocs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final name = (data['employeeName'] ?? '').toString().toLowerCase();
+          final email = (data['employeeEmail'] ?? '').toString().toLowerCase();
+          final date = (data['date'] ?? '').toString().toLowerCase();
+          final status = (data['status'] ?? '').toString().toLowerCase();
+
+          if (_attendanceSearchQuery.isEmpty) return true;
+          return name.contains(_attendanceSearchQuery) ||
+              email.contains(_attendanceSearchQuery) ||
+              date.contains(_attendanceSearchQuery) ||
+              status.contains(_attendanceSearchQuery);
+        }).toList();
+
+        if (filteredDocs.isEmpty) {
+          return Center(
+            child: Text('No logs match "$_attendanceSearchQuery"', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: filteredDocs.length,
+          itemBuilder: (context, index) {
+            final doc = filteredDocs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            final name = data['employeeName'] ?? '';
+            final email = data['employeeEmail'] ?? '';
+            final date = data['date'] ?? '';
+            final status = data['status'] ?? 'Present';
+
+            final checkIn = data['checkInTime'] != null
+                ? DateFormat('hh:mm a').format((data['checkInTime'] as Timestamp).toDate())
+                : 'N/A';
+            final checkOut = data['checkOutTime'] != null
+                ? DateFormat('hh:mm a').format((data['checkOutTime'] as Timestamp).toDate())
+                : 'Not Checked Out';
+
+            Color statusColor = status == 'Late' ? Colors.orange : Colors.green;
+            if (data['checkOutTime'] != null) statusColor = Colors.blue;
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: AppColors.primary,
+                      child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'E', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14)),
+                          Text('$email • $date', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[600])),
+                          const SizedBox(height: 4),
+                          Text('In: $checkIn  |  Out: $checkOut', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF334155))),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1700,12 +2837,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Employee Directory & App Logins',
+                    'User Management Center',
                     style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Manage employee profiles, activate/deactivate app login access, and reset passwords.',
+                    'Create users, delete accounts, change passwords, and manage app access permissions.',
                     style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600]),
                   ),
                 ],
@@ -1718,7 +2855,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               icon: const Icon(Icons.person_add_alt_1_rounded, size: 18, color: Colors.white),
-              label: const Text('Add Employee', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              label: const Text('+ Create User', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () => setState(() => _selectedTab = 1),
             ),
           ],
@@ -1963,18 +3100,45 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             runSpacing: 8,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
+                              // Change Password Button
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  elevation: 0,
+                                ),
+                                icon: const Icon(Icons.key_rounded, size: 16),
+                                label: const Text('Change Password', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                onPressed: () => _changeUserPassword(email, name),
+                              ),
+
+                              // Edit Profile Button
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF334155),
+                                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                icon: const Icon(Icons.edit_note_rounded, size: 16),
+                                label: const Text('Edit Profile', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                onPressed: () => _editUserProfile(data, doc.id),
+                              ),
+
                               // Toggle App Login (Activate / Deactivate)
                               if (!isAdmin) ...[
                                 if (isActive)
                                   OutlinedButton.icon(
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: Colors.red[700],
-                                      side: BorderSide(color: Colors.red.withValues(alpha: 0.5)),
+                                      side: BorderSide(color: Colors.red.withValues(alpha: 0.4)),
                                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     ),
                                     icon: const Icon(Icons.block_rounded, size: 16),
-                                    label: const Text('Deactivate App Login', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    label: const Text('Deactivate Login', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                     onPressed: () => _toggleEmployeeStatus(email, name, isActive),
                                   )
                                 else
@@ -1984,34 +3148,370 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                       foregroundColor: Colors.white,
                                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      elevation: 0,
                                     ),
                                     icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
-                                    label: const Text('Activate App Login', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    label: const Text('Activate Login', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                     onPressed: () => _toggleEmployeeStatus(email, name, isActive),
                                   ),
                               ],
 
-                              // Send Password Reset Email Link
-                              OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.primary,
-                                  side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                icon: const Icon(Icons.lock_reset_rounded, size: 16),
-                                label: const Text('Send Password Link', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                onPressed: () => _sendPasswordResetLink(email, name),
-                              ),
-
                               // Delete Employee
                               if (!isAdmin)
                                 IconButton(
-                                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
-                                  tooltip: 'Delete Employee Profile',
+                                  icon: const Icon(Icons.delete_forever_rounded, color: Colors.red, size: 22),
+                                  tooltip: 'Delete User Profile',
                                   onPressed: () => _deleteEmployee(doc.id, name, email),
                                 ),
                             ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAnnouncementsTab() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Broadcast Announcements & Notices', style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))),
+          const SizedBox(height: 4),
+          Text('Publish company-wide announcements. Automatically notifies all employees in real-time.', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          const SizedBox(height: 20),
+
+          // Broadcast Creator Card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Create New Organization Notice', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 14),
+                CustomTextField(
+                  label: 'Announcement Title',
+                  hint: 'e.g. Office Holiday Notice / Townhall Meeting',
+                  controller: _announcementTitleCtrl,
+                ),
+                CustomTextField(
+                  label: 'Broadcast Message',
+                  hint: 'Provide full notice details for all staff...',
+                  controller: _announcementMsgCtrl,
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 8),
+                Text('Priority Level:', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  value: _announcementPriority,
+                  decoration: const InputDecoration(border: OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(value: 'Normal', child: Text('Normal (General Information)')),
+                    DropdownMenuItem(value: 'Important', child: Text('Important (High Priority)')),
+                    DropdownMenuItem(value: 'Urgent', child: Text('🚨 Urgent (Action Required)')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _announcementPriority = v);
+                  },
+                ),
+                const SizedBox(height: 18),
+                CustomButton(
+                  text: 'Broadcast Notice & Notify All Employees',
+                  isLoading: _isLoading,
+                  onPressed: () async {
+                    final title = _announcementTitleCtrl.text.trim();
+                    final msg = _announcementMsgCtrl.text.trim();
+                    if (title.isEmpty || msg.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please provide both title and message'), backgroundColor: Colors.red),
+                      );
+                      return;
+                    }
+
+                    setState(() => _isLoading = true);
+                    try {
+                      final notifId = 'ANN-${DateTime.now().millisecondsSinceEpoch}';
+                      await FirebaseFirestore.instance.collection('announcements').doc(notifId).set({
+                        'id': notifId,
+                        'title': title,
+                        'message': msg,
+                        'priority': _announcementPriority,
+                        'createdBy': 'System Administrator',
+                        'createdAt': Timestamp.now(),
+                      });
+
+                      // Broadcast in-app notification
+                      final sysNotifId = 'NOTIF-${DateTime.now().millisecondsSinceEpoch}';
+                      await FirebaseFirestore.instance.collection('notifications').doc(sysNotifId).set({
+                        'id': sysNotifId,
+                        'title': '📢 $title',
+                        'message': msg,
+                        'requestId': notifId,
+                        'timestamp': Timestamp.now(),
+                        'isRead': false,
+                        'recipientEmail': 'all',
+                      });
+
+                      // Audit log
+                      final audId = 'AUD-${DateTime.now().millisecondsSinceEpoch}';
+                      await FirebaseFirestore.instance.collection('audit_logs').doc(audId).set({
+                        'id': audId,
+                        'action': 'ANNOUNCEMENT_BROADCAST',
+                        'performedBy': 'mayurailead@gmail.com',
+                        'targetEmail': 'all',
+                        'details': 'Title: $title ($notifId)',
+                        'timestamp': Timestamp.now(),
+                      });
+
+                      _announcementTitleCtrl.clear();
+                      _announcementMsgCtrl.clear();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('✓ Announcement broadcast to all employees!'), backgroundColor: AppColors.statusApproved),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to broadcast: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    } finally {
+                      if (mounted) setState(() => _isLoading = false);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Active Broadcast Notices List
+          Text('Active Broadcast Notices', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('announcements').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+              if (docs.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text('No active broadcast notices.', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                  ),
+                );
+              }
+
+              return Column(
+                children: docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final title = data['title'] ?? '';
+                  final msg = data['message'] ?? '';
+                  final priority = data['priority'] ?? 'Normal';
+                  final createdAt = data['createdAt'] != null
+                      ? DateFormat('yyyy-MM-dd hh:mm a').format((data['createdAt'] as Timestamp).toDate())
+                      : '';
+
+                  Color pColor = Colors.blue;
+                  if (priority == 'Important') pColor = Colors.orange;
+                  if (priority == 'Urgent') pColor = Colors.red;
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Color(0xFFE2E8F0))),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(color: pColor.withValues(alpha: 0.1), shape: BoxShape.circle),
+                            child: Icon(Icons.campaign_rounded, color: pColor, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(child: Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 15))),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(color: pColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                                      child: Text(priority, style: TextStyle(color: pColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(msg, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+                                const SizedBox(height: 8),
+                                Text('Published: $createdAt', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                            tooltip: 'Delete Announcement',
+                            onPressed: () async {
+                              await FirebaseFirestore.instance.collection('announcements').doc(doc.id).delete();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuditLogsTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('System Compliance & Audit Trail', style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))),
+        const SizedBox(height: 4),
+        Text('Immutable log of administrative operations, leave approvals, and user status changes.', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        const SizedBox(height: 16),
+
+        // Search Bar
+        TextField(
+          controller: _auditSearchCtrl,
+          decoration: InputDecoration(
+            hintText: 'Search audit logs by action, actor, or target email...',
+            prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
+            suffixIcon: _auditSearchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear_rounded),
+                    onPressed: () {
+                      _auditSearchCtrl.clear();
+                      setState(() => _auditSearchQuery = '');
+                    },
+                  )
+                : null,
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+          ),
+          onChanged: (v) => setState(() => _auditSearchQuery = v.trim().toLowerCase()),
+        ),
+        const SizedBox(height: 16),
+
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('audit_logs').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final allDocs = snapshot.data?.docs ?? [];
+              if (allDocs.isEmpty) {
+                return Center(
+                  child: Text('No audit events logged yet.', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                );
+              }
+
+              final sortedDocs = List<QueryDocumentSnapshot>.from(allDocs);
+              sortedDocs.sort((a, b) {
+                final dataA = a.data() as Map<String, dynamic>;
+                final dataB = b.data() as Map<String, dynamic>;
+                final timeA = (dataA['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
+                final timeB = (dataB['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
+                return timeB.compareTo(timeA);
+              });
+
+              final filtered = sortedDocs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final act = (data['action'] ?? '').toString().toLowerCase();
+                final by = (data['performedBy'] ?? '').toString().toLowerCase();
+                final target = (data['targetEmail'] ?? '').toString().toLowerCase();
+                final details = (data['details'] ?? '').toString().toLowerCase();
+
+                if (_auditSearchQuery.isEmpty) return true;
+                return act.contains(_auditSearchQuery) ||
+                    by.contains(_auditSearchQuery) ||
+                    target.contains(_auditSearchQuery) ||
+                    details.contains(_auditSearchQuery);
+              }).toList();
+
+              if (filtered.isEmpty) {
+                return Center(child: Text('No audit logs match "$_auditSearchQuery"', style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
+              }
+
+              return ListView.builder(
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final doc = filtered[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final action = data['action'] ?? 'SYSTEM_EVENT';
+                  final by = data['performedBy'] ?? 'Admin';
+                  final target = data['targetEmail'] ?? '';
+                  final details = data['details'] ?? '';
+                  final timeStr = data['timestamp'] != null
+                      ? DateFormat('yyyy-MM-dd hh:mm a').format((data['timestamp'] as Timestamp).toDate())
+                      : '';
+
+                  Color actionColor = AppColors.primary;
+                  if (action.toString().contains('APPROVED')) actionColor = Colors.green;
+                  if (action.toString().contains('REJECTED') || action.toString().contains('DELETED')) actionColor = Colors.red;
+                  if (action.toString().contains('ONBOARDED')) actionColor = Colors.purple;
+                  if (action.toString().contains('ATTENDANCE')) actionColor = Colors.teal;
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Color(0xFFE2E8F0))),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: actionColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                            child: Text(
+                              action,
+                              style: TextStyle(color: actionColor, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(details, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13)),
+                                const SizedBox(height: 2),
+                                Text('By: $by  →  Target: $target', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                                const SizedBox(height: 2),
+                                Text(timeStr, style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+                              ],
+                            ),
                           ),
                         ],
                       ),

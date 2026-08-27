@@ -19,9 +19,9 @@ class FirebaseAuthRepository implements IAuthRepository {
       final email = firebaseUser.email;
       if (email == null) return null;
 
-      // Fetch from Firestore with fallback
+      // Fetch from Firestore with strict timeout fallback so splash screen never hangs
       try {
-        final doc = await _employeesCollection.doc(email).get();
+        final doc = await _employeesCollection.doc(email).get().timeout(const Duration(seconds: 2));
         if (doc.exists && doc.data() != null) {
           return EmployeeModel.fromJson(doc.data()!);
         }
@@ -45,7 +45,7 @@ class FirebaseAuthRepository implements IAuthRepository {
       );
 
       try {
-        await _employeesCollection.doc(email).set(profile.toJson());
+        _employeesCollection.doc(email).set(profile.toJson()).timeout(const Duration(seconds: 2)).ignore();
       } catch (_) {}
 
       return profile;
@@ -56,13 +56,11 @@ class FirebaseAuthRepository implements IAuthRepository {
 
   @override
   Future<EmployeeModel> signInWithGoogle() async {
-    // Google Sign-In is not used in production; throw meaningful error
     throw UnimplementedError('Google Workspace sign-in is not configured for this project.');
   }
 
   @override
   Future<EmployeeModel> signInWithDemoUser(String email) async {
-    // Demo users are removed in production. Attempt real Firebase Auth login.
     throw UnimplementedError('Demo accounts are disabled. Use real credentials.');
   }
 

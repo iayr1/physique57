@@ -42,6 +42,21 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
     'Other Expenses',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _amountController.addListener(() {
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
   Future<void> _pickReceipt() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -60,7 +75,7 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
     setState(() => _isSubmitting = true);
 
     final requestId = RequestIdGenerator.generate();
-    final amountDouble = double.parse(_amountController.text.trim());
+    final amountDouble = double.tryParse(_amountController.text.trim()) ?? 0.0;
 
     final newRequest = RequestModel(
       requestId: requestId,
@@ -72,7 +87,7 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
       requestType: RequestType.expense,
       requestData: {
         'category': _category,
-        'amount': '\$${amountDouble.toStringAsFixed(2)}',
+        'amount': '₹${amountDouble.toStringAsFixed(2)}',
         'expenseDate': DateFormatter.formatDateShort(_expenseDate!),
         'description': _descriptionController.text.trim(),
       },
@@ -110,7 +125,7 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
         context.push('/requests/${result.requestId}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Expense Request ${result.requestId} submitted!'),
+            content: Text('Expense Claim ${result.requestId} submitted!'),
             backgroundColor: AppColors.statusApproved,
           ),
         );
@@ -120,6 +135,10 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
 
   @override
   Widget build(BuildContext context) {
+    final rawAmount = double.tryParse(_amountController.text.trim()) ?? 0.0;
+    final baseAmount = rawAmount / 1.18;
+    final gstAmount = rawAmount - baseAmount;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Expense Reimbursement', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
@@ -148,11 +167,11 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
               children: [
                 Expanded(
                   child: CustomTextField(
-                    label: 'Amount (\$ USD)',
+                    label: 'Total Amount (₹ INR)',
                     hint: '0.00',
                     controller: _amountController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    prefixIcon: const Icon(Icons.attach_money_rounded),
+                    prefixIcon: const Icon(Icons.currency_rupee_rounded),
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Enter amount';
                       if (double.tryParse(v) == null) return 'Invalid number';
@@ -184,6 +203,47 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
                 ),
               ],
             ),
+
+            // Automated Tax & Total Breakdown Box
+            if (rawAmount > 0) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Base Pre-Tax Amount:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text('₹${baseAmount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Estimated GST (18%):', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text('₹${gstAmount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue)),
+                      ],
+                    ),
+                    const Divider(height: 14),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Total Reimbursement:', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text('₹${rawAmount.toStringAsFixed(2)}', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.green)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
 
             CustomTextField(
               label: 'Expense Description & Justification',

@@ -245,21 +245,21 @@ class ScaffoldWithBottomNavBar extends ConsumerWidget {
         ),
         child: NavigationBarTheme(
           data: NavigationBarThemeData(
-            height: 72,
+            height: 70,
             backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
             indicatorColor: AppColors.primary.withValues(alpha: 0.12),
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             labelTextStyle: WidgetStateProperty.resolveWith((states) {
               if (states.contains(WidgetState.selected)) {
-                return GoogleFonts.plusJakartaSans(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
+                return GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
                   color: isDark ? Colors.white : AppColors.primary,
                 );
               }
               return GoogleFonts.plusJakartaSans(
                 fontSize: 10,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
                 color: isDark ? AppColors.textSecondaryDark : const Color(0xFF64748B),
               );
             }),
