@@ -1,4 +1,7 @@
 # Miscellaneous
+node_modules/
+dist/
+.vercel/
 *.class
 *.log
 *.pyc
