@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/services/push_notification_service.dart';
 import '../features/notifications/data/firestore_notification_repository.dart';
 import '../features/notifications/data/notification_repository.dart';
 import '../features/notifications/domain/notification_model.dart';
@@ -20,11 +21,13 @@ class NotificationNotifier extends StateNotifier<AsyncValue<List<NotificationMod
   Future<void> loadNotifications() async {
     final user = _ref.read(authProvider).value;
     if (user == null) {
+      PushNotificationService.stopFirestoreNotificationListener();
       state = const AsyncValue.data([]);
       return;
     }
     
     try {
+      PushNotificationService.startFirestoreNotificationListener(user.email);
       final list = await _repository.getNotifications();
       state = AsyncValue.data(list);
     } catch (e, st) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from './context/AuthContext';
 import { db } from './firebase/config';
 import {
@@ -9,8 +9,6 @@ import {
   getDoc,
   setDoc,
   serverTimestamp,
-  query,
-  orderBy
 } from 'firebase/firestore';
 import { useToast } from './components/Toast';
 import { Modal } from './components/Modal';
@@ -25,6 +23,8 @@ import { AttendanceView } from './views/AttendanceView';
 import { TasksView } from './views/TasksView';
 import { AnnouncementsView } from './views/AnnouncementsView';
 import { AuditLogsView } from './views/AuditLogsView';
+import { playNotificationChime } from './utils/audioUtils';
+import { showDesktopNotification, requestBrowserNotificationPermission } from './utils/notificationUtils';
 
 export const App = () => {
   const { currentUser, loading } = useAuth();
@@ -40,15 +40,31 @@ export const App = () => {
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [notifications, setNotifications] = useState([]);
 
   // Reject Modal State
   const [rejectingRequest, setRejectingRequest] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isRejecting, setIsRejecting] = useState(false);
 
+  // Initial load ref to prevent chiming for old existing items on initial load
+  const isInitialLoad = useRef(true);
+
+  // Auto-request desktop notifications when admin is logged in
+  useEffect(() => {
+    if (currentUser) {
+      requestBrowserNotificationPermission();
+    }
+  }, [currentUser]);
+
   // Real-time Firestore Listeners
   useEffect(() => {
     if (!currentUser) return;
+
+    isInitialLoad.current = true;
+    setTimeout(() => {
+      isInitialLoad.current = false;
+    }, 2500);
 
     // 1. Employees Stream
     const unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
@@ -56,7 +72,7 @@ export const App = () => {
       setEmployees(list);
     });
 
-    // 2. Requests Stream
+    // 2. Requests Stream with Live Incoming Alerts
     const unsubRequests = onSnapshot(collection(db, 'requests'), (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       list.sort((a, b) => {
@@ -64,6 +80,31 @@ export const App = () => {
         const timeB = b.submittedAt?.toDate?.() || b.createdAt?.toDate?.() || new Date(0);
         return timeB - timeA;
       });
+
+      // Detect newly submitted employee requests
+      if (!isInitialLoad.current) {
+        snap.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const data = change.doc.data();
+            const employeeName = data.employeeName || 'Staff Member';
+            const reqType = data.requestType || 'Request';
+
+            // Play alert sound chime
+            playNotificationChime();
+
+            // Show floating Toast Alert
+            addToast(`🔔 New ${reqType} submitted by ${employeeName}!`, 'info', 6000);
+
+            // Show native desktop notification
+            showDesktopNotification(
+              `🔔 New ${reqType} Submitted`,
+              `${employeeName} submitted a new request for approval.`,
+              () => setCurrentTab(3)
+            );
+          }
+        });
+      }
+
       setRequests(list);
     });
 
@@ -111,6 +152,17 @@ export const App = () => {
       setAuditLogs(list);
     });
 
+    // 7. System Notifications Stream
+    const unsubNotifications = onSnapshot(collection(db, 'notifications'), (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => {
+        const timeA = a.timestamp?.toDate?.() || new Date(0);
+        const timeB = b.timestamp?.toDate?.() || new Date(0);
+        return timeB - timeA;
+      });
+      setNotifications(list);
+    });
+
     return () => {
       unsubEmployees();
       unsubRequests();
@@ -118,8 +170,9 @@ export const App = () => {
       unsubAttendance();
       unsubAnnouncements();
       unsubAudit();
+      unsubNotifications();
     };
-  }, [currentUser]);
+  }, [currentUser, addToast]);
 
   // Request Approval with Automated Leave Quota Deduction
   const handleApproveRequest = async (req) => {
@@ -315,6 +368,8 @@ export const App = () => {
           onMenuClick={() => setIsMobileOpen(true)}
           currentTabTitle={currentTabTitle}
           pendingCount={pendingRequestsCount}
+          notifications={notifications}
+          onSelectTab={setCurrentTab}
         />
 
         {/* Dynamic View Body */}
