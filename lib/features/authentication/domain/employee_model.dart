@@ -11,6 +11,9 @@ class EmployeeModel {
   final bool isActive;
   final String status; // 'active' or 'deactivated'
   final Map<String, dynamic> leaveBalances;
+  final double baseSalary;
+  final String phoneNumber;
+  final String joiningDate;
 
   const EmployeeModel({
     required this.id,
@@ -25,12 +28,15 @@ class EmployeeModel {
     this.isActive = true,
     this.status = 'active',
     this.leaveBalances = const {},
+    this.baseSalary = 65000.0,
+    this.phoneNumber = '',
+    this.joiningDate = '',
   });
 
   bool get isAdmin =>
-      role == 'admin' ||
-      email.trim().toLowerCase() == 'mayurailead@gmail.com' ||
-      designation.toLowerCase().contains('administrator');
+      role.toLowerCase().trim() == 'admin' ||
+      designation.toLowerCase().contains('administrator') ||
+      designation.toLowerCase().contains('admin');
 
   static Map<String, dynamic> defaultLeaveBalances() => {
         'Annual / Paid Leave': {'total': 18, 'used': 0, 'remaining': 18},
@@ -48,7 +54,6 @@ class EmployeeModel {
         return (quota['remaining'] as num).toInt();
       }
     }
-    // Fallback to default
     final defaults = defaultLeaveBalances();
     if (defaults.containsKey(type)) {
       return (defaults[type]['remaining'] as num).toInt();
@@ -93,6 +98,9 @@ class EmployeeModel {
     bool? isActive,
     String? status,
     Map<String, dynamic>? leaveBalances,
+    double? baseSalary,
+    String? phoneNumber,
+    String? joiningDate,
   }) {
     return EmployeeModel(
       id: id ?? this.id,
@@ -107,13 +115,16 @@ class EmployeeModel {
       isActive: isActive ?? this.isActive,
       status: status ?? this.status,
       leaveBalances: leaveBalances ?? this.leaveBalances,
+      baseSalary: baseSalary ?? this.baseSalary,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      joiningDate: joiningDate ?? this.joiningDate,
     );
   }
 
   factory EmployeeModel.fromJson(Map<String, dynamic> json) {
     final email = json['email'] as String? ?? '';
-    final defaultRole = (email.trim().toLowerCase() == 'mayurailead@gmail.com') ? 'admin' : 'employee';
-    
+    final role = (json['role'] as String? ?? 'employee').trim();
+
     Map<String, dynamic> balances;
     if (json['leaveBalances'] != null && json['leaveBalances'] is Map) {
       balances = Map<String, dynamic>.from(json['leaveBalances'] as Map);
@@ -124,19 +135,29 @@ class EmployeeModel {
     final rawIsActive = json['isActive'];
     final bool active = rawIsActive is bool ? rawIsActive : (json['status'] != 'deactivated');
 
+    double salary = 65000.0;
+    if (json['baseSalary'] != null) {
+      salary = (json['baseSalary'] as num).toDouble();
+    } else if (json['salary'] != null) {
+      salary = (json['salary'] as num).toDouble();
+    }
+
     return EmployeeModel(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
+      id: json['id'] as String? ?? 'EMP-${1000 + email.hashCode.abs() % 8000}',
+      name: json['name'] as String? ?? (email.isNotEmpty ? email.split('@').first : 'Employee'),
       email: email,
-      department: json['department'] as String? ?? '',
-      designation: json['designation'] as String? ?? '',
-      reportingManagerName: json['reportingManagerName'] as String? ?? '',
+      department: json['department'] as String? ?? 'Physique 57 Operations',
+      designation: json['designation'] as String? ?? 'Team Specialist',
+      reportingManagerName: json['reportingManagerName'] as String? ?? 'Management Board',
       reportingManagerEmail: json['reportingManagerEmail'] as String? ?? '',
       photoUrl: json['photoUrl'] as String? ?? '',
-      role: json['role'] as String? ?? defaultRole,
+      role: role,
       isActive: active,
       status: json['status'] as String? ?? (active ? 'active' : 'deactivated'),
       leaveBalances: balances,
+      baseSalary: salary,
+      phoneNumber: json['phoneNumber'] as String? ?? '',
+      joiningDate: json['joiningDate'] as String? ?? '',
     );
   }
 
@@ -154,21 +175,9 @@ class EmployeeModel {
       'isActive': isActive,
       'status': status,
       'leaveBalances': leaveBalances.isNotEmpty ? leaveBalances : defaultLeaveBalances(),
+      'baseSalary': baseSalary,
+      'phoneNumber': phoneNumber,
+      'joiningDate': joiningDate,
     };
   }
-
-  /// Default demo user (Alex Morgan)
-  static const EmployeeModel demoUser = EmployeeModel(
-    id: 'EMP-8842',
-    name: 'Alex Morgan',
-    email: 'alex.morgan@acmeglobal.com',
-    department: 'Engineering & Technology',
-    designation: 'Senior Software Engineer',
-    reportingManagerName: 'Sarah Jenkins',
-    reportingManagerEmail: 'sarah.jenkins@acmeglobal.com',
-    photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
-    role: 'employee',
-    isActive: true,
-    status: 'active',
-  );
 }

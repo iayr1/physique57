@@ -14,6 +14,7 @@ import '../../domain/approval_step_model.dart';
 import '../../domain/request_category_model.dart';
 import '../../domain/request_model.dart';
 import '../../domain/request_status.dart';
+import 'controllers/form_controllers.dart';
 
 class GenericRequestForm extends ConsumerStatefulWidget {
   const GenericRequestForm({super.key});
@@ -26,13 +27,18 @@ class _GenericRequestFormState extends ConsumerState<GenericRequestForm> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _detailsController = TextEditingController();
-  String? _attachmentName;
-  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _detailsController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickAttachment() async {
     final result = await FilePicker.platform.pickFiles();
     if (result != null && result.files.isNotEmpty) {
-      setState(() => _attachmentName = result.files.first.name);
+      ref.read(genericFormControllerProvider.notifier).setAttachmentName(result.files.first.name);
     }
   }
 
@@ -41,7 +47,8 @@ class _GenericRequestFormState extends ConsumerState<GenericRequestForm> {
     final user = ref.read(authProvider).value;
     if (user == null) return;
 
-    setState(() => _isSubmitting = true);
+    final formState = ref.read(genericFormControllerProvider);
+    ref.read(genericFormControllerProvider.notifier).setSubmitting(true);
 
     final requestId = RequestIdGenerator.generate();
     final newRequest = RequestModel(
@@ -56,7 +63,7 @@ class _GenericRequestFormState extends ConsumerState<GenericRequestForm> {
         'title': _titleController.text.trim(),
         'details': _detailsController.text.trim(),
       },
-      attachments: _attachmentName != null ? [_attachmentName!] : [],
+      attachments: formState.attachmentName != null ? [formState.attachmentName!] : [],
       status: RequestStatus.pendingManagerApproval,
       submittedAt: DateTime.now(),
       approvalHistory: [
@@ -80,7 +87,7 @@ class _GenericRequestFormState extends ConsumerState<GenericRequestForm> {
     final result = await ref.read(requestsProvider.notifier).submitNewRequest(newRequest);
 
     if (mounted) {
-      setState(() => _isSubmitting = false);
+      ref.read(genericFormControllerProvider.notifier).setSubmitting(false);
       if (result != null) {
         context.push('/requests/${result.requestId}');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -95,6 +102,8 @@ class _GenericRequestFormState extends ConsumerState<GenericRequestForm> {
 
   @override
   Widget build(BuildContext context) {
+    final formState = ref.watch(genericFormControllerProvider);
+
     return Scaffold(
       appBar: AppBar(title: Text('Other Request', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700))),
       body: Form(
@@ -137,9 +146,9 @@ class _GenericRequestFormState extends ConsumerState<GenericRequestForm> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        _attachmentName ?? 'Attach supporting file',
+                        formState.attachmentName ?? 'Attach supporting file',
                         style: GoogleFonts.plusJakartaSans(
-                          color: _attachmentName != null ? AppColors.textPrimaryLight : AppColors.textSecondaryLight,
+                          color: formState.attachmentName != null ? AppColors.textPrimaryLight : AppColors.textSecondaryLight,
                         ),
                       ),
                     ),
@@ -151,7 +160,7 @@ class _GenericRequestFormState extends ConsumerState<GenericRequestForm> {
             const SizedBox(height: 32),
             CustomButton(
               text: 'Submit Request',
-              isLoading: _isSubmitting,
+              isLoading: formState.isSubmitting,
               onPressed: _submit,
             ),
           ],

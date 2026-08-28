@@ -52,7 +52,7 @@ class FirestoreRequestRepository implements IRequestRepository {
     final notifId = 'NOTIF-${DateTime.now().millisecondsSinceEpoch}';
     final targetEmail = newRequest.managerEmail.isNotEmpty
         ? newRequest.managerEmail
-        : 'mayurailead@gmail.com';
+        : 'admin@physique57.com';
 
     await _firestore.collection('notifications').doc(notifId).set({
       'id': notifId,
@@ -79,7 +79,7 @@ class FirestoreRequestRepository implements IRequestRepository {
   /// Automated Approval Engine with Instant Quota Deduction & Notifications
   Future<void> approveRequest(
     String requestId, {
-    String adminEmail = 'mayurailead@gmail.com',
+    String adminEmail = 'admin@physique57.com',
     String adminName = 'Administrator',
   }) async {
     final req = await getRequestById(requestId);
@@ -92,6 +92,8 @@ class FirestoreRequestRepository implements IRequestRepository {
         days = int.tryParse(req.requestData['days'].toString()) ?? 1;
       } else if (req.requestData['totalDays'] != null) {
         days = int.tryParse(req.requestData['totalDays'].toString()) ?? 1;
+      } else if (req.requestData['numberOfDays'] != null) {
+        days = int.tryParse(req.requestData['numberOfDays'].toString()) ?? 1;
       }
 
       // Automated Leave Balance Deduction in Firestore
@@ -168,7 +170,7 @@ class FirestoreRequestRepository implements IRequestRepository {
   Future<void> rejectRequest(
     String requestId, {
     required String reason,
-    String adminEmail = 'mayurailead@gmail.com',
+    String adminEmail = 'admin@physique57.com',
     String adminName = 'Administrator',
   }) async {
     final req = await getRequestById(requestId);

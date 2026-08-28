@@ -13,6 +13,7 @@ import '../../domain/approval_step_model.dart';
 import '../../domain/request_category_model.dart';
 import '../../domain/request_model.dart';
 import '../../domain/request_status.dart';
+import 'controllers/form_controllers.dart';
 
 class WFHForm extends ConsumerStatefulWidget {
   const WFHForm({super.key});
@@ -23,39 +24,42 @@ class WFHForm extends ConsumerStatefulWidget {
 
 class _WFHFormState extends ConsumerState<WFHForm> {
   final _formKey = GlobalKey<FormState>();
-  DateTime? _startDate;
-  DateTime? _endDate;
   final _reasonController = TextEditingController();
-  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickDate(bool isStart) async {
+    final formState = ref.read(wfhFormControllerProvider);
     final picked = await showDatePicker(
       context: context,
-      initialDate: _startDate ?? DateTime.now(),
+      initialDate: formState.startDate ?? DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 90)),
     );
     if (picked != null) {
-      setState(() {
-        if (isStart) {
-          _startDate = picked;
-          if (_endDate != null && _endDate!.isBefore(_startDate!)) {
-            _endDate = _startDate;
-          }
-        } else {
-          _endDate = picked;
+      if (isStart) {
+        ref.read(wfhFormControllerProvider.notifier).setStartDate(picked);
+        if (formState.endDate != null && formState.endDate!.isBefore(picked)) {
+          ref.read(wfhFormControllerProvider.notifier).setEndDate(picked);
         }
-      });
+      } else {
+        ref.read(wfhFormControllerProvider.notifier).setEndDate(picked);
+      }
     }
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_startDate == null || _endDate == null) return;
+    final formState = ref.read(wfhFormControllerProvider);
+    if (formState.startDate == null || formState.endDate == null) return;
     final user = ref.read(authProvider).value;
     if (user == null) return;
 
-    setState(() => _isSubmitting = true);
+    ref.read(wfhFormControllerProvider.notifier).setSubmitting(true);
 
     final requestId = RequestIdGenerator.generate();
     final newRequest = RequestModel(
@@ -67,8 +71,8 @@ class _WFHFormState extends ConsumerState<WFHForm> {
       managerEmail: user.reportingManagerEmail,
       requestType: RequestType.workFromHome,
       requestData: {
-        'startDate': DateFormatter.formatDateShort(_startDate!),
-        'endDate': DateFormatter.formatDateShort(_endDate!),
+        'startDate': DateFormatter.formatDateShort(formState.startDate!),
+        'endDate': DateFormatter.formatDateShort(formState.endDate!),
         'reason': _reasonController.text.trim(),
       },
       attachments: [],
@@ -95,7 +99,7 @@ class _WFHFormState extends ConsumerState<WFHForm> {
     final result = await ref.read(requestsProvider.notifier).submitNewRequest(newRequest);
 
     if (mounted) {
-      setState(() => _isSubmitting = false);
+      ref.read(wfhFormControllerProvider.notifier).setSubmitting(false);
       if (result != null) {
         context.push('/requests/${result.requestId}');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -110,6 +114,8 @@ class _WFHFormState extends ConsumerState<WFHForm> {
 
   @override
   Widget build(BuildContext context) {
+    final formState = ref.watch(wfhFormControllerProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Work From Home Request')),
       body: Form(
@@ -124,8 +130,8 @@ class _WFHFormState extends ConsumerState<WFHForm> {
                     label: 'Start Date',
                     readOnly: true,
                     controller: TextEditingController(
-                      text: _startDate != null
-                          ? DateFormatter.formatDateShort(_startDate!)
+                      text: formState.startDate != null
+                          ? DateFormatter.formatDateShort(formState.startDate!)
                           : '',
                     ),
                     suffixIcon: const Icon(Icons.calendar_month_rounded),
@@ -138,8 +144,8 @@ class _WFHFormState extends ConsumerState<WFHForm> {
                     label: 'End Date',
                     readOnly: true,
                     controller: TextEditingController(
-                      text: _endDate != null
-                          ? DateFormatter.formatDateShort(_endDate!)
+                      text: formState.endDate != null
+                          ? DateFormatter.formatDateShort(formState.endDate!)
                           : '',
                     ),
                     suffixIcon: const Icon(Icons.calendar_month_rounded),
@@ -160,7 +166,7 @@ class _WFHFormState extends ConsumerState<WFHForm> {
             const SizedBox(height: 24),
             CustomButton(
               text: 'Submit WFH Request',
-              isLoading: _isSubmitting,
+              isLoading: formState.isSubmitting,
               onPressed: _submit,
             ),
           ],

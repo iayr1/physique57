@@ -15,6 +15,9 @@ import '../../domain/approval_step_model.dart';
 import '../../domain/request_category_model.dart';
 import '../../domain/request_model.dart';
 import '../../domain/request_status.dart';
+import 'controllers/form_controllers.dart';
+
+final expenseAmountInputProvider = StateProvider.autoDispose<String>((ref) => '');
 
 class ExpenseRequestForm extends ConsumerStatefulWidget {
   const ExpenseRequestForm({super.key});
@@ -25,12 +28,8 @@ class ExpenseRequestForm extends ConsumerStatefulWidget {
 
 class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
   final _formKey = GlobalKey<FormState>();
-  String _category = 'Travel & Lodging';
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
-  DateTime? _expenseDate = DateTime.now();
-  String? _receiptName;
-  bool _isSubmitting = false;
 
   final List<String> _categories = [
     'Travel & Lodging',
@@ -46,7 +45,7 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
   void initState() {
     super.initState();
     _amountController.addListener(() {
-      setState(() {});
+      ref.read(expenseAmountInputProvider.notifier).state = _amountController.text;
     });
   }
 
@@ -63,7 +62,7 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
       allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
     );
     if (result != null && result.files.isNotEmpty) {
-      setState(() => _receiptName = result.files.first.name);
+      ref.read(expenseFormControllerProvider.notifier).setReceiptName(result.files.first.name);
     }
   }
 
@@ -72,7 +71,8 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
     final user = ref.read(authProvider).value;
     if (user == null) return;
 
-    setState(() => _isSubmitting = true);
+    final formState = ref.read(expenseFormControllerProvider);
+    ref.read(expenseFormControllerProvider.notifier).setSubmitting(true);
 
     final requestId = RequestIdGenerator.generate();
     final amountDouble = double.tryParse(_amountController.text.trim()) ?? 0.0;
@@ -86,12 +86,12 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
       managerEmail: user.reportingManagerEmail,
       requestType: RequestType.expense,
       requestData: {
-        'category': _category,
+        'category': formState.category,
         'amount': '₹${amountDouble.toStringAsFixed(2)}',
-        'expenseDate': DateFormatter.formatDateShort(_expenseDate!),
+        'expenseDate': DateFormatter.formatDateShort(formState.expenseDate ?? DateTime.now()),
         'description': _descriptionController.text.trim(),
       },
-      attachments: _receiptName != null ? [_receiptName!] : [],
+      attachments: formState.receiptName != null ? [formState.receiptName!] : [],
       status: RequestStatus.pendingManagerApproval,
       submittedAt: DateTime.now(),
       approvalHistory: [
@@ -120,7 +120,7 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
     final result = await ref.read(requestsProvider.notifier).submitNewRequest(newRequest);
 
     if (mounted) {
-      setState(() => _isSubmitting = false);
+      ref.read(expenseFormControllerProvider.notifier).setSubmitting(false);
       if (result != null) {
         context.push('/requests/${result.requestId}');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -135,7 +135,9 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
 
   @override
   Widget build(BuildContext context) {
-    final rawAmount = double.tryParse(_amountController.text.trim()) ?? 0.0;
+    final expenseState = ref.watch(expenseFormControllerProvider);
+    final amountInput = ref.watch(expenseAmountInputProvider);
+    final rawAmount = double.tryParse(amountInput.trim()) ?? 0.0;
     final baseAmount = rawAmount / 1.18;
     final gstAmount = rawAmount - baseAmount;
 
@@ -154,11 +156,16 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              initialValue: _category,
+              initialValue: expenseState.category,
+              isExpanded: true,
               items: _categories
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans())))
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis)))
                   .toList(),
-              onChanged: (v) => setState(() => _category = v!),
+              onChanged: (v) {
+                if (v != null) {
+                  ref.read(expenseFormControllerProvider.notifier).setCategory(v);
+                }
+              },
               decoration: const InputDecoration(),
             ),
             const SizedBox(height: 16),
@@ -185,19 +192,21 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
                     label: 'Expense Date',
                     readOnly: true,
                     controller: TextEditingController(
-                      text: _expenseDate != null
-                          ? DateFormatter.formatDateShort(_expenseDate!)
+                      text: expenseState.expenseDate != null
+                          ? DateFormatter.formatDateShort(expenseState.expenseDate!)
                           : '',
                     ),
                     suffixIcon: const Icon(Icons.calendar_month_rounded),
                     onTap: () async {
                       final picked = await showDatePicker(
                         context: context,
-                        initialDate: _expenseDate ?? DateTime.now(),
+                        initialDate: expenseState.expenseDate ?? DateTime.now(),
                         firstDate: DateTime(2025),
                         lastDate: DateTime.now(),
                       );
-                      if (picked != null) setState(() => _expenseDate = picked);
+                      if (picked != null) {
+                        ref.read(expenseFormControllerProvider.notifier).setExpenseDate(picked);
+                      }
                     },
                   ),
                 ),
@@ -273,9 +282,9 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        _receiptName ?? 'Attach receipt (PDF, PNG, JPG)',
+                        expenseState.receiptName ?? 'Attach receipt (PDF, PNG, JPG)',
                         style: GoogleFonts.plusJakartaSans(
-                          color: _receiptName != null ? AppColors.textPrimaryLight : AppColors.textSecondaryLight,
+                          color: expenseState.receiptName != null ? AppColors.textPrimaryLight : AppColors.textSecondaryLight,
                         ),
                       ),
                     ),
@@ -287,7 +296,7 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
 
             CustomButton(
               text: 'Submit Expense Claim',
-              isLoading: _isSubmitting,
+              isLoading: expenseState.isSubmitting,
               onPressed: _submitForm,
             ),
           ],

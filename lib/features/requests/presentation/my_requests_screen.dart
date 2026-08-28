@@ -177,30 +177,36 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen>
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color: request.requestType.color.withValues(alpha: 0.12),
-                                              shape: BoxShape.circle,
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: request.requestType.color.withValues(alpha: 0.12),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Icon(
+                                                request.requestType.icon,
+                                                size: 18,
+                                                color: request.requestType.color,
+                                              ),
                                             ),
-                                            child: Icon(
-                                              request.requestType.icon,
-                                              size: 18,
-                                              color: request.requestType.color,
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                request.requestId,
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Text(
-                                            request.requestId,
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
+                                      const SizedBox(width: 8),
                                       StatusBadge(status: request.status, compact: true),
                                     ],
                                   ),
@@ -227,9 +233,12 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen>
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text(
-                                        'Submitted ${DateFormatter.formatDateTime(request.submittedAt)}',
-                                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                                      Expanded(
+                                        child: Text(
+                                          'Submitted ${DateFormatter.formatDateTime(request.submittedAt)}',
+                                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
                                       if (isPending)
                                         TextButton(

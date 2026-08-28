@@ -16,36 +16,35 @@ class FirebaseAuthRepository implements IAuthRepository {
       final firebaseUser = _auth.currentUser;
       if (firebaseUser == null) return null;
 
-      final email = firebaseUser.email;
-      if (email == null) return null;
+      final email = firebaseUser.email?.trim().toLowerCase();
+      if (email == null || email.isEmpty) return null;
 
       // Fetch from Firestore with strict timeout fallback so splash screen never hangs
       try {
-        final doc = await _employeesCollection.doc(email).get().timeout(const Duration(seconds: 2));
+        final doc = await _employeesCollection.doc(email).get().timeout(const Duration(seconds: 3));
         if (doc.exists && doc.data() != null) {
           return EmployeeModel.fromJson(doc.data()!);
         }
       } catch (_) {}
 
-      // Fallback profile from authenticated Firebase User
-      final isAdmin = email.trim().toLowerCase() == 'mayurailead@gmail.com';
+      // Fallback profile from authenticated Firebase User if Firestore record doesn't exist yet
       final profile = EmployeeModel(
-        id: isAdmin ? 'ADMIN-001' : 'EMP-${1000 + email.hashCode.abs() % 8000}',
+        id: 'EMP-${1000 + email.hashCode.abs() % 8000}',
         name: firebaseUser.displayName?.isNotEmpty == true
             ? firebaseUser.displayName!
-            : (isAdmin ? 'System Administrator' : email.split('@').first),
+            : email.split('@').first,
         email: email,
-        department: isAdmin ? 'Administration' : 'General',
-        designation: isAdmin ? 'System Administrator' : 'Employee',
-        reportingManagerName: isAdmin ? 'Executive Board' : 'N/A',
-        reportingManagerEmail: isAdmin ? 'board@company.com' : 'n/a',
+        department: 'Physique 57 Operations',
+        designation: 'Team Member',
+        reportingManagerName: 'Management Board',
+        reportingManagerEmail: '',
         photoUrl: firebaseUser.photoURL ?? '',
-        role: isAdmin ? 'admin' : 'employee',
+        role: 'employee',
         leaveBalances: EmployeeModel.defaultLeaveBalances(),
       );
 
       try {
-        _employeesCollection.doc(email).set(profile.toJson()).timeout(const Duration(seconds: 2)).ignore();
+        _employeesCollection.doc(email).set(profile.toJson()).timeout(const Duration(seconds: 3)).ignore();
       } catch (_) {}
 
       return profile;
@@ -57,11 +56,6 @@ class FirebaseAuthRepository implements IAuthRepository {
   @override
   Future<EmployeeModel> signInWithGoogle() async {
     throw UnimplementedError('Google Workspace sign-in is not configured for this project.');
-  }
-
-  @override
-  Future<EmployeeModel> signInWithDemoUser(String email) async {
-    throw UnimplementedError('Demo accounts are disabled. Use real credentials.');
   }
 
   @override

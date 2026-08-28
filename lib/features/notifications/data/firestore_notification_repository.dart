@@ -29,7 +29,7 @@ class FirestoreNotificationRepository implements INotificationRepository {
           .map((doc) => _fromFirestore(doc.data()))
           .where((n) {
             final rec = n.recipientEmail.trim().toLowerCase();
-            return rec == email || rec.isEmpty || email == 'mayurailead@gmail.com';
+            return rec == email || rec == 'all' || rec.isEmpty;
           })
           .toList();
 
@@ -58,7 +58,7 @@ class FirestoreNotificationRepository implements INotificationRepository {
       for (final doc in snapshot.docs) {
         final rec = (doc.data()['recipientEmail'] ?? '').toString().trim().toLowerCase();
         final isRead = doc.data()['isRead'] == true;
-        if (!isRead && (rec == email || rec.isEmpty || email == 'mayurailead@gmail.com')) {
+        if (!isRead && (rec == email || rec == 'all' || rec.isEmpty)) {
           batch.update(doc.reference, {'isRead': true});
         }
       }

@@ -14,6 +14,7 @@ import '../../domain/approval_step_model.dart';
 import '../../domain/request_category_model.dart';
 import '../../domain/request_model.dart';
 import '../../domain/request_status.dart';
+import 'controllers/form_controllers.dart';
 
 class ITSupportForm extends ConsumerStatefulWidget {
   const ITSupportForm({super.key});
@@ -24,12 +25,7 @@ class ITSupportForm extends ConsumerStatefulWidget {
 
 class _ITSupportFormState extends ConsumerState<ITSupportForm> {
   final _formKey = GlobalKey<FormState>();
-  String _issueCategory = 'Hardware Failure';
-  String _deviceType = 'MacBook / Laptop';
-  String _priority = 'Medium - Impairs non-urgent work';
   final _descriptionController = TextEditingController();
-  String? _screenshotName;
-  bool _isSubmitting = false;
 
   final List<String> _issueCategories = [
     'Hardware Failure',
@@ -55,13 +51,19 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
     'Critical - System outage / Emergency',
   ];
 
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
   Future<void> _pickScreenshot() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['png', 'jpg', 'jpeg', 'pdf'],
     );
     if (result != null && result.files.isNotEmpty) {
-      setState(() => _screenshotName = result.files.first.name);
+      ref.read(itSupportFormControllerProvider.notifier).setScreenshotName(result.files.first.name);
     }
   }
 
@@ -70,7 +72,8 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
     final user = ref.read(authProvider).value;
     if (user == null) return;
 
-    setState(() => _isSubmitting = true);
+    final formState = ref.read(itSupportFormControllerProvider);
+    ref.read(itSupportFormControllerProvider.notifier).setSubmitting(true);
 
     final requestId = RequestIdGenerator.generate();
     final newRequest = RequestModel(
@@ -82,12 +85,12 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
       managerEmail: user.reportingManagerEmail,
       requestType: RequestType.itSupport,
       requestData: {
-        'issueCategory': _issueCategory,
-        'deviceType': _deviceType,
-        'priority': _priority,
+        'issueCategory': formState.issueCategory,
+        'deviceType': formState.deviceType,
+        'priority': formState.priority,
         'description': _descriptionController.text.trim(),
       },
-      attachments: _screenshotName != null ? [_screenshotName!] : [],
+      attachments: formState.screenshotName != null ? [formState.screenshotName!] : [],
       status: RequestStatus.pendingManagerApproval,
       submittedAt: DateTime.now(),
       approvalHistory: [
@@ -110,7 +113,7 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
     final result = await ref.read(requestsProvider.notifier).submitNewRequest(newRequest);
 
     if (mounted) {
-      setState(() => _isSubmitting = false);
+      ref.read(itSupportFormControllerProvider.notifier).setSubmitting(false);
       if (result != null) {
         context.push('/requests/${result.requestId}');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -122,6 +125,8 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
 
   @override
   Widget build(BuildContext context) {
+    final itState = ref.watch(itSupportFormControllerProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('IT Helpdesk Ticket', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
@@ -137,9 +142,14 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              initialValue: _issueCategory,
-              items: _issueCategories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans()))).toList(),
-              onChanged: (v) => setState(() => _issueCategory = v!),
+              initialValue: itState.issueCategory,
+              isExpanded: true,
+              items: _issueCategories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  ref.read(itSupportFormControllerProvider.notifier).setIssueCategory(v);
+                }
+              },
               decoration: const InputDecoration(),
             ),
             const SizedBox(height: 16),
@@ -150,9 +160,14 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              initialValue: _deviceType,
-              items: _deviceTypes.map((d) => DropdownMenuItem(value: d, child: Text(d, style: GoogleFonts.plusJakartaSans()))).toList(),
-              onChanged: (v) => setState(() => _deviceType = v!),
+              initialValue: itState.deviceType,
+              isExpanded: true,
+              items: _deviceTypes.map((d) => DropdownMenuItem(value: d, child: Text(d, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  ref.read(itSupportFormControllerProvider.notifier).setDeviceType(v);
+                }
+              },
               decoration: const InputDecoration(),
             ),
             const SizedBox(height: 16),
@@ -163,9 +178,14 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              initialValue: _priority,
-              items: _priorities.map((p) => DropdownMenuItem(value: p, child: Text(p, style: GoogleFonts.plusJakartaSans()))).toList(),
-              onChanged: (v) => setState(() => _priority = v!),
+              initialValue: itState.priority,
+              isExpanded: true,
+              items: _priorities.map((p) => DropdownMenuItem(value: p, child: Text(p, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  ref.read(itSupportFormControllerProvider.notifier).setPriority(v);
+                }
+              },
               decoration: const InputDecoration(),
             ),
             const SizedBox(height: 16),
@@ -198,9 +218,9 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        _screenshotName ?? 'Attach error screenshot',
+                        itState.screenshotName ?? 'Attach error screenshot',
                         style: GoogleFonts.plusJakartaSans(
-                          color: _screenshotName != null ? AppColors.textPrimaryLight : AppColors.textSecondaryLight,
+                          color: itState.screenshotName != null ? AppColors.textPrimaryLight : AppColors.textSecondaryLight,
                         ),
                       ),
                     ),
@@ -212,7 +232,7 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
 
             CustomButton(
               text: 'Submit IT Ticket',
-              isLoading: _isSubmitting,
+              isLoading: itState.isSubmitting,
               onPressed: _submitForm,
             ),
           ],

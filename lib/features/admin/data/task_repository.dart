@@ -73,7 +73,7 @@ class TaskRepository {
       if (status == 'Completed') {
         final doc = await _collection.doc(taskId).get();
         final taskTitle = doc.data()?['title'] ?? 'Task';
-        final assigner = doc.data()?['assignedByEmail'] ?? 'mayurailead@gmail.com';
+        final assigner = doc.data()?['assignedByEmail'] ?? 'admin@physique57.com';
         final performer = employeeName ?? doc.data()?['assignedToName'] ?? 'Employee';
 
         final notifId = 'NOTIF-${DateTime.now().millisecondsSinceEpoch}';

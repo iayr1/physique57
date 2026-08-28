@@ -188,7 +188,7 @@ class ProfileScreen extends ConsumerWidget {
           const SizedBox(height: 20),
 
           // 2. Admin Portal Shortcut (if admin)
-          if (user?.isAdmin == true || user?.email.toLowerCase() == 'mayurailead@gmail.com') ...[
+          if (user?.isAdmin == true) ...[
             Container(
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
@@ -280,7 +280,7 @@ class ProfileScreen extends ConsumerWidget {
                   leading: const Icon(Icons.mail_outline_rounded, color: AppColors.primary),
                   title: const Text('Manager Email', style: TextStyle(fontSize: 12, color: Colors.grey)),
                   subtitle: Text(
-                    user?.reportingManagerEmail.isNotEmpty == true ? user!.reportingManagerEmail : 'mayurailead@gmail.com',
+                    user?.reportingManagerEmail.isNotEmpty == true ? user!.reportingManagerEmail : 'admin@physique57.com',
                     style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13),
                   ),
                 ),

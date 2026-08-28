@@ -13,6 +13,7 @@ import '../../domain/approval_step_model.dart';
 import '../../domain/request_category_model.dart';
 import '../../domain/request_model.dart';
 import '../../domain/request_status.dart';
+import 'controllers/form_controllers.dart';
 
 class TravelRequestForm extends ConsumerStatefulWidget {
   const TravelRequestForm({super.key});
@@ -26,10 +27,6 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
   final _destinationController = TextEditingController();
   final _purposeController = TextEditingController();
   final _budgetController = TextEditingController();
-  DateTime? _startDate;
-  DateTime? _endDate;
-  String _mode = 'Flight (Economy)';
-  bool _isSubmitting = false;
 
   final List<String> _modes = [
     'Flight (Economy)',
@@ -39,9 +36,18 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
     'Personal Vehicle (Reimbursed)',
   ];
 
+  @override
+  void dispose() {
+    _destinationController.dispose();
+    _purposeController.dispose();
+    _budgetController.dispose();
+    super.dispose();
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_startDate == null || _endDate == null) {
+    final formState = ref.read(travelFormControllerProvider);
+    if (formState.startDate == null || formState.endDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select departure and return dates')),
       );
@@ -51,7 +57,7 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
     final user = ref.read(authProvider).value;
     if (user == null) return;
 
-    setState(() => _isSubmitting = true);
+    ref.read(travelFormControllerProvider.notifier).setSubmitting(true);
 
     final requestId = RequestIdGenerator.generate();
     final newRequest = RequestModel(
@@ -65,9 +71,9 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
       requestData: {
         'destination': _destinationController.text.trim(),
         'purpose': _purposeController.text.trim(),
-        'departureDate': DateFormatter.formatDateShort(_startDate!),
-        'returnDate': DateFormatter.formatDateShort(_endDate!),
-        'travelMode': _mode,
+        'departureDate': DateFormatter.formatDateShort(formState.startDate!),
+        'returnDate': DateFormatter.formatDateShort(formState.endDate!),
+        'travelMode': formState.travelMode,
         'estimatedBudget': _budgetController.text.isNotEmpty ? '\$${_budgetController.text}' : 'N/A',
       },
       attachments: [],
@@ -99,7 +105,7 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
     final result = await ref.read(requestsProvider.notifier).submitNewRequest(newRequest);
 
     if (mounted) {
-      setState(() => _isSubmitting = false);
+      ref.read(travelFormControllerProvider.notifier).setSubmitting(false);
       if (result != null) {
         context.push('/requests/${result.requestId}');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -111,6 +117,8 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
 
   @override
   Widget build(BuildContext context) {
+    final formState = ref.watch(travelFormControllerProvider);
+
     return Scaffold(
       appBar: AppBar(title: Text('Business Travel Authorization', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700))),
       body: Form(
@@ -139,7 +147,7 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
                     label: 'Departure Date',
                     readOnly: true,
                     controller: TextEditingController(
-                      text: _startDate != null ? DateFormatter.formatDateShort(_startDate!) : '',
+                      text: formState.startDate != null ? DateFormatter.formatDateShort(formState.startDate!) : '',
                     ),
                     suffixIcon: const Icon(Icons.flight_takeoff_rounded),
                     onTap: () async {
@@ -149,7 +157,9 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 365)),
                       );
-                      if (p != null) setState(() => _startDate = p);
+                      if (p != null) {
+                        ref.read(travelFormControllerProvider.notifier).setStartDate(p);
+                      }
                     },
                   ),
                 ),
@@ -159,17 +169,19 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
                     label: 'Return Date',
                     readOnly: true,
                     controller: TextEditingController(
-                      text: _endDate != null ? DateFormatter.formatDateShort(_endDate!) : '',
+                      text: formState.endDate != null ? DateFormatter.formatDateShort(formState.endDate!) : '',
                     ),
                     suffixIcon: const Icon(Icons.flight_land_rounded),
                     onTap: () async {
                       final p = await showDatePicker(
                         context: context,
-                        initialDate: _startDate ?? DateTime.now(),
+                        initialDate: formState.startDate ?? DateTime.now(),
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 365)),
                       );
-                      if (p != null) setState(() => _endDate = p);
+                      if (p != null) {
+                        ref.read(travelFormControllerProvider.notifier).setEndDate(p);
+                      }
                     },
                   ),
                 ),
@@ -182,9 +194,14 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              initialValue: _mode,
-              items: _modes.map((m) => DropdownMenuItem(value: m, child: Text(m, style: GoogleFonts.plusJakartaSans()))).toList(),
-              onChanged: (v) => setState(() => _mode = v!),
+              initialValue: formState.travelMode,
+              isExpanded: true,
+              items: _modes.map((m) => DropdownMenuItem(value: m, child: Text(m, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  ref.read(travelFormControllerProvider.notifier).setTravelMode(v);
+                }
+              },
               decoration: const InputDecoration(),
             ),
             const SizedBox(height: 16),
@@ -200,7 +217,7 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
             const SizedBox(height: 24),
             CustomButton(
               text: 'Submit Travel Request',
-              isLoading: _isSubmitting,
+              isLoading: formState.isSubmitting,
               onPressed: _submit,
             ),
           ],

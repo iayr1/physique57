@@ -15,6 +15,7 @@ import '../../domain/approval_step_model.dart';
 import '../../domain/request_category_model.dart';
 import '../../domain/request_model.dart';
 import '../../domain/request_status.dart';
+import 'controllers/form_controllers.dart';
 
 class LeaveRequestForm extends ConsumerStatefulWidget {
   const LeaveRequestForm({super.key});
@@ -25,12 +26,7 @@ class LeaveRequestForm extends ConsumerStatefulWidget {
 
 class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
   final _formKey = GlobalKey<FormState>();
-  String _leaveType = 'Annual / Paid Leave';
-  DateTime? _startDate;
-  DateTime? _endDate;
   final _reasonController = TextEditingController();
-  String? _attachmentName;
-  bool _isSubmitting = false;
 
   final List<String> _leaveTypes = [
     'Annual / Paid Leave',
@@ -41,11 +37,17 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
     'Unpaid Leave',
   ];
 
-  int get _numberOfDays {
-    if (_startDate != null && _endDate != null) {
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  int _calculateDays(DateTime? start, DateTime? end) {
+    if (start != null && end != null) {
       int count = 0;
-      DateTime cur = _startDate!;
-      while (!cur.isAfter(_endDate!)) {
+      DateTime cur = start;
+      while (!cur.isAfter(end)) {
         if (cur.weekday != DateTime.saturday && cur.weekday != DateTime.sunday) {
           count++;
         }
@@ -57,23 +59,22 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
   }
 
   Future<void> _pickDate(bool isStart) async {
+    final formState = ref.read(leaveFormControllerProvider);
     final picked = await showDatePicker(
       context: context,
-      initialDate: _startDate ?? DateTime.now(),
+      initialDate: formState.startDate ?? DateTime.now(),
       firstDate: DateTime.now().subtract(const Duration(days: 30)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null) {
-      setState(() {
-        if (isStart) {
-          _startDate = picked;
-          if (_endDate != null && _endDate!.isBefore(_startDate!)) {
-            _endDate = _startDate;
-          }
-        } else {
-          _endDate = picked;
+      if (isStart) {
+        ref.read(leaveFormControllerProvider.notifier).setStartDate(picked);
+        if (formState.endDate != null && formState.endDate!.isBefore(picked)) {
+          ref.read(leaveFormControllerProvider.notifier).setEndDate(picked);
         }
-      });
+      } else {
+        ref.read(leaveFormControllerProvider.notifier).setEndDate(picked);
+      }
     }
   }
 
@@ -83,15 +84,14 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
       allowedExtensions: ['pdf', 'doc', 'docx', 'png', 'jpg'],
     );
     if (result != null && result.files.isNotEmpty) {
-      setState(() {
-        _attachmentName = result.files.first.name;
-      });
+      ref.read(leaveFormControllerProvider.notifier).setAttachmentName(result.files.first.name);
     }
   }
 
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_startDate == null || _endDate == null) {
+    final formState = ref.read(leaveFormControllerProvider);
+    if (formState.startDate == null || formState.endDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select valid start and end dates')),
       );
@@ -101,12 +101,13 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
     final user = ref.read(authProvider).value;
     if (user == null) return;
 
-    final remaining = user.getRemainingLeave(_leaveType);
-    if (_leaveType != 'Unpaid Leave' && _numberOfDays > remaining) {
+    final numDays = _calculateDays(formState.startDate, formState.endDate);
+    final remaining = user.getRemainingLeave(formState.leaveType);
+    if (formState.leaveType != 'Unpaid Leave' && numDays > remaining) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Insufficient leave balance! You requested $_numberOfDays day(s), but only have $remaining day(s) remaining for $_leaveType. Please choose fewer days or select Unpaid Leave.',
+            'Insufficient leave balance! You requested $numDays day(s), but only have $remaining day(s) remaining for ${formState.leaveType}. Please choose fewer days or select Unpaid Leave.',
           ),
           backgroundColor: AppColors.statusRejected,
         ),
@@ -114,7 +115,7 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    ref.read(leaveFormControllerProvider.notifier).setSubmitting(true);
 
     final requestId = RequestIdGenerator.generate();
     final newRequest = RequestModel(
@@ -126,13 +127,13 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
       managerEmail: user.reportingManagerEmail,
       requestType: RequestType.leave,
       requestData: {
-        'leaveType': _leaveType,
-        'startDate': DateFormatter.formatDateShort(_startDate!),
-        'endDate': DateFormatter.formatDateShort(_endDate!),
-        'numberOfDays': _numberOfDays,
+        'leaveType': formState.leaveType,
+        'startDate': DateFormatter.formatDateShort(formState.startDate!),
+        'endDate': DateFormatter.formatDateShort(formState.endDate!),
+        'numberOfDays': numDays,
         'reason': _reasonController.text.trim(),
       },
-      attachments: _attachmentName != null ? [_attachmentName!] : [],
+      attachments: formState.attachmentName != null ? [formState.attachmentName!] : [],
       status: RequestStatus.pendingManagerApproval,
       submittedAt: DateTime.now(),
       approvalHistory: [
@@ -156,7 +157,7 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
     final result = await ref.read(requestsProvider.notifier).submitNewRequest(newRequest);
 
     if (mounted) {
-      setState(() => _isSubmitting = false);
+      ref.read(leaveFormControllerProvider.notifier).setSubmitting(false);
       if (result != null) {
         context.push('/requests/${result.requestId}');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -171,10 +172,12 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
 
   @override
   Widget build(BuildContext context) {
+    final leaveState = ref.watch(leaveFormControllerProvider);
     final user = ref.watch(authProvider).value;
-    final remainingDays = user?.getRemainingLeave(_leaveType) ?? 0;
-    final totalDays = user?.getTotalLeave(_leaveType) ?? 0;
-    final usedDays = user?.getUsedLeave(_leaveType) ?? 0;
+    final remainingDays = user?.getRemainingLeave(leaveState.leaveType) ?? 0;
+    final totalDays = user?.getTotalLeave(leaveState.leaveType) ?? 0;
+    final usedDays = user?.getUsedLeave(leaveState.leaveType) ?? 0;
+    final numberOfDays = _calculateDays(leaveState.startDate, leaveState.endDate);
 
     return Scaffold(
       appBar: AppBar(
@@ -229,19 +232,27 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              initialValue: _leaveType,
+              initialValue: leaveState.leaveType,
+              isExpanded: true,
               items: _leaveTypes
-                  .map((t) => DropdownMenuItem(value: t, child: Text(t, style: GoogleFonts.plusJakartaSans())))
+                  .map((t) => DropdownMenuItem(
+                        value: t,
+                        child: Text(t, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis),
+                      ))
                   .toList(),
-              onChanged: (val) => setState(() => _leaveType = val!),
+              onChanged: (val) {
+                if (val != null) {
+                  ref.read(leaveFormControllerProvider.notifier).setLeaveType(val);
+                }
+              },
               decoration: const InputDecoration(),
             ),
             const SizedBox(height: 8),
 
             // Live Quota Indicator Badge
-            if (_leaveType != 'Unpaid Leave')
+            if (leaveState.leaveType != 'Unpaid Leave')
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: remainingDays > 0 ? Colors.green.withValues(alpha: 0.08) : Colors.red.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
@@ -255,12 +266,16 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
                       color: remainingDays > 0 ? Colors.green : Colors.red,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      'Remaining Quota: $remainingDays / $totalDays Days  (Used: $usedDays Days)',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: remainingDays > 0 ? Colors.green[800] : Colors.red[800],
+                    Expanded(
+                      child: Text(
+                        'Quota: $remainingDays / $totalDays Days Remaining (Used: $usedDays)',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: remainingDays > 0 ? Colors.green[800] : Colors.red[800],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -277,13 +292,13 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
                     hint: 'Select Date',
                     readOnly: true,
                     controller: TextEditingController(
-                      text: _startDate != null
-                          ? DateFormatter.formatDateShort(_startDate!)
+                      text: leaveState.startDate != null
+                          ? DateFormatter.formatDateShort(leaveState.startDate!)
                           : '',
                     ),
                     suffixIcon: const Icon(Icons.calendar_today_rounded, size: 20),
                     onTap: () => _pickDate(true),
-                    validator: (v) => _startDate == null ? 'Required' : null,
+                    validator: (v) => leaveState.startDate == null ? 'Required' : null,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -293,20 +308,20 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
                     hint: 'Select Date',
                     readOnly: true,
                     controller: TextEditingController(
-                      text: _endDate != null
-                          ? DateFormatter.formatDateShort(_endDate!)
+                      text: leaveState.endDate != null
+                          ? DateFormatter.formatDateShort(leaveState.endDate!)
                           : '',
                     ),
                     suffixIcon: const Icon(Icons.calendar_today_rounded, size: 20),
                     onTap: () => _pickDate(false),
-                    validator: (v) => _endDate == null ? 'Required' : null,
+                    validator: (v) => leaveState.endDate == null ? 'Required' : null,
                   ),
                 ),
               ],
             ),
 
             // Automatically Calculated Days Box
-            if (_numberOfDays > 0)
+            if (numberOfDays > 0)
               Container(
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 16),
@@ -320,7 +335,7 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
                     const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 20),
                     const SizedBox(width: 10),
                     Text(
-                      'Total Duration: $_numberOfDays Working Day${_numberOfDays > 1 ? "s" : ""}',
+                      'Total Duration: $numberOfDays Working Day${numberOfDays > 1 ? "s" : ""}',
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
@@ -359,9 +374,9 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        _attachmentName ?? 'Upload medical certificate or supporting document',
+                        leaveState.attachmentName ?? 'Upload medical certificate or supporting document',
                         style: GoogleFonts.plusJakartaSans(
-                          color: _attachmentName != null ? AppColors.textPrimaryLight : AppColors.textSecondaryLight,
+                          color: leaveState.attachmentName != null ? AppColors.textPrimaryLight : AppColors.textSecondaryLight,
                         ),
                       ),
                     ),
@@ -373,7 +388,7 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
 
             CustomButton(
               text: 'Submit Leave Request',
-              isLoading: _isSubmitting,
+              isLoading: leaveState.isSubmitting,
               onPressed: _submitForm,
             ),
           ],

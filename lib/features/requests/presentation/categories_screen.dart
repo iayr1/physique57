@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../domain/request_category_model.dart';
+import 'controllers/categories_controller.dart';
 
-class CategoriesScreen extends StatefulWidget {
+class CategoriesScreen extends ConsumerStatefulWidget {
   const CategoriesScreen({super.key});
 
   @override
-  State<CategoriesScreen> createState() => _CategoriesScreenState();
+  ConsumerState<CategoriesScreen> createState() => _CategoriesScreenState();
 }
 
-class _CategoriesScreenState extends State<CategoriesScreen> {
+class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
-  String _query = '';
 
   @override
   void dispose() {
@@ -25,9 +26,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final query = ref.watch(categorySearchQueryProvider);
     final filtered = RequestType.values.where((t) {
-      if (_query.isEmpty) return true;
-      return t.title.toLowerCase().contains(_query) || t.description.toLowerCase().contains(_query);
+      if (query.isEmpty) return true;
+      return t.title.toLowerCase().contains(query) || t.description.toLowerCase().contains(query);
     }).toList();
 
     return Scaffold(
@@ -47,16 +49,16 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           // Search Bar
           TextField(
             controller: _searchCtrl,
-            onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+            onChanged: (v) => ref.read(categorySearchQueryProvider.notifier).state = v.trim().toLowerCase(),
             decoration: InputDecoration(
               hintText: 'Search request category (e.g. Leave, IT, Travel)...',
               prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
-              suffixIcon: _query.isNotEmpty
+              suffixIcon: query.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear_rounded),
                       onPressed: () {
                         _searchCtrl.clear();
-                        setState(() => _query = '');
+                        ref.read(categorySearchQueryProvider.notifier).state = '';
                       },
                     )
                   : null,
@@ -89,7 +91,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
-                child: Text('No categories match "$_query"', style: TextStyle(color: Colors.grey[500])),
+                child: Text('No categories match "$query"', style: TextStyle(color: Colors.grey[500])),
               ),
             )
           else

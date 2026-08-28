@@ -65,13 +65,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       // If user is logged in
       if (isLoggedIn) {
         if (isLoggingIn || isOnboarding) {
-          if (kIsWeb && (user.isAdmin || user.email.toLowerCase() == 'mayurailead@gmail.com')) {
+          if (kIsWeb && user.isAdmin) {
             return '/admin';
           }
           return '/';
         }
         // Protect admin route from non-admins
-        if (isAdminRoute && !user.isAdmin && user.email.toLowerCase() != 'mayurailead@gmail.com') {
+        if (isAdminRoute && !user.isAdmin) {
           return '/';
         }
       }
@@ -107,7 +107,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/',
             builder: (context, state) {
               final currentUser = ref.watch(authProvider).valueOrNull;
-              if (kIsWeb && (currentUser?.isAdmin == true || currentUser?.email.toLowerCase() == 'mayurailead@gmail.com')) {
+              if (kIsWeb && currentUser?.isAdmin == true) {
                 return const AdminDashboardScreen();
               }
               return const DashboardScreen();

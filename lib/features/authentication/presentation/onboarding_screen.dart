@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../providers/theme_provider.dart';
+import 'controllers/onboarding_controller.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -16,7 +17,6 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final PageController _pageController = PageController();
-  int _currentPage = 0;
 
   final List<OnboardingPageData> _pages = [
     OnboardingPageData(
@@ -76,9 +76,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   void _onPageChanged(int index) {
-    setState(() {
-      _currentPage = index;
-    });
+    ref.read(onboardingPageProvider.notifier).state = index;
   }
 
   void _handleGetStarted() {
@@ -88,16 +86,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentPage = ref.watch(onboardingPageProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final lastPage = _currentPage == _pages.length - 1;
+    final lastPage = currentPage == _pages.length - 1;
 
     return Scaffold(
       body: AnimatedContainer(
         duration: const Duration(milliseconds: 600),
         decoration: BoxDecoration(
           gradient: isDark
-              ? _pages[_currentPage].darkBgGradient
-              : _pages[_currentPage].bgGradient,
+              ? _pages[currentPage].darkBgGradient
+              : _pages[currentPage].bgGradient,
         ),
         child: SafeArea(
           child: Column(
@@ -228,7 +227,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     // Dot Indicators
                     Row(
                       children: List.generate(_pages.length, (index) {
-                        final isSelected = _currentPage == index;
+                        final isSelected = currentPage == index;
                         return AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
                           margin: const EdgeInsets.only(right: 6),
@@ -236,7 +235,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           height: 8,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? _pages[_currentPage].color
+                                ? _pages[currentPage].color
                                 : (isDark ? Colors.white24 : Colors.black12),
                             borderRadius: BorderRadius.circular(4),
                           ),
@@ -260,7 +259,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                               child: ElevatedButton(
                                 onPressed: _handleGetStarted,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: _pages[_currentPage].color,
+                                  backgroundColor: _pages[currentPage].color,
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                   shape: RoundedRectangleBorder(
@@ -294,7 +293,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                                 );
                               },
                               style: IconButton.styleFrom(
-                                backgroundColor: _pages[_currentPage].color,
+                                backgroundColor: _pages[currentPage].color,
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.all(14),
                                 shape: RoundedRectangleBorder(

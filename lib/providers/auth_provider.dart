@@ -12,6 +12,7 @@ final authRepositoryProvider = Provider<IAuthRepository>((ref) {
 class AuthNotifier extends StateNotifier<AsyncValue<EmployeeModel?>> {
   final IAuthRepository _authRepository;
   FirebaseAuth get _firebaseAuth => FirebaseAuth.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   AuthNotifier(this._authRepository) : super(const AsyncValue.loading()) {
     checkCurrentUser();
@@ -49,14 +50,14 @@ class AuthNotifier extends StateNotifier<AsyncValue<EmployeeModel?>> {
           password: password,
         );
       } on FirebaseAuthException catch (authErr) {
+        // If user document was pre-provisioned by admin in Firestore, auto-create the Auth account
         if (authErr.code == 'user-not-found' || authErr.code == 'invalid-credential') {
-          // Check if employee was provisioned in Firestore
           DocumentSnapshot? doc;
           try {
-            doc = await FirebaseFirestore.instance.collection('employees').doc(emailStr).get();
+            doc = await _firestore.collection('employees').doc(emailStr).get();
           } catch (_) {}
 
-          if (emailStr == 'mayurailead@gmail.com' || (doc != null && doc.exists)) {
+          if (doc != null && doc.exists) {
             try {
               credential = await _firebaseAuth.createUserWithEmailAndPassword(
                 email: emailStr,
@@ -73,34 +74,34 @@ class AuthNotifier extends StateNotifier<AsyncValue<EmployeeModel?>> {
         }
       }
 
-      // Fetch employee profile from Firestore with fallback
+      // Fetch employee profile from Firestore
       EmployeeModel? user;
       try {
-        final doc = await FirebaseFirestore.instance.collection('employees').doc(emailStr).get();
+        final doc = await _firestore.collection('employees').doc(emailStr).get();
         if (doc.exists && doc.data() != null) {
           user = EmployeeModel.fromJson(doc.data()!);
         }
       } catch (_) {}
 
+      // Fallback if not found in Firestore yet
       if (user == null) {
-        final isAdmin = emailStr == 'mayurailead@gmail.com';
         final profile = EmployeeModel(
-          id: isAdmin ? 'ADMIN-001' : 'EMP-${1000 + emailStr.hashCode.abs() % 8000}',
+          id: 'EMP-${1000 + emailStr.hashCode.abs() % 8000}',
           name: credential.user?.displayName?.isNotEmpty == true
               ? credential.user!.displayName!
-              : (isAdmin ? 'System Administrator' : emailStr.split('@').first),
+              : emailStr.split('@').first,
           email: emailStr,
-          department: isAdmin ? 'Administration' : 'General',
-          designation: isAdmin ? 'System Administrator' : 'Employee',
-          reportingManagerName: isAdmin ? 'Executive Board' : 'N/A',
-          reportingManagerEmail: isAdmin ? 'board@company.com' : 'n/a',
+          department: 'Physique 57 Operations',
+          designation: 'Team Member',
+          reportingManagerName: 'Management Board',
+          reportingManagerEmail: '',
           photoUrl: credential.user?.photoURL ?? '',
-          role: isAdmin ? 'admin' : 'employee',
+          role: 'employee',
           leaveBalances: EmployeeModel.defaultLeaveBalances(),
         );
 
         try {
-          await FirebaseFirestore.instance.collection('employees').doc(emailStr).set(profile.toJson());
+          await _firestore.collection('employees').doc(emailStr).set(profile.toJson());
         } catch (_) {}
 
         user = profile;
@@ -110,7 +111,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<EmployeeModel?>> {
       if (!user.isActive || user.status == 'deactivated') {
         if (!user.isAdmin) {
           await _firebaseAuth.signOut();
-          throw Exception('Your employee account has been deactivated by the administrator. Please contact mayurailead@gmail.com to restore access.');
+          throw Exception('Your employee account has been deactivated. Please contact your administrator.');
         }
       }
 
@@ -121,11 +122,51 @@ class AuthNotifier extends StateNotifier<AsyncValue<EmployeeModel?>> {
     }
   }
 
+  Future<void> signUpWithEmailAndPassword({
+    required String email,
+    required String password,
+    required String name,
+    required String department,
+    required String designation,
+    String? reportingManagerName,
+    String? reportingManagerEmail,
+    String role = 'employee',
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      final emailStr = email.trim().toLowerCase();
+      final credential = await _firebaseAuth.createUserWithEmailAndPassword(
+        email: emailStr,
+        password: password,
+      );
+
+      final profile = EmployeeModel(
+        id: 'EMP-${1000 + emailStr.hashCode.abs() % 8000}',
+        name: name.trim(),
+        email: emailStr,
+        department: department.trim(),
+        designation: designation.trim(),
+        reportingManagerName: reportingManagerName?.trim() ?? 'Management Board',
+        reportingManagerEmail: reportingManagerEmail?.trim() ?? '',
+        photoUrl: credential.user?.photoURL ?? '',
+        role: role,
+        leaveBalances: EmployeeModel.defaultLeaveBalances(),
+      );
+
+      await _firestore.collection('employees').doc(emailStr).set(profile.toJson());
+
+      state = AsyncValue.data(profile);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+
   Future<void> reloadUserProfile() async {
     try {
       final currentUser = _firebaseAuth.currentUser;
       if (currentUser != null && currentUser.email != null) {
-        final doc = await FirebaseFirestore.instance.collection('employees').doc(currentUser.email!).get();
+        final doc = await _firestore.collection('employees').doc(currentUser.email!.trim().toLowerCase()).get();
         if (doc.exists && doc.data() != null) {
           state = AsyncValue.data(EmployeeModel.fromJson(doc.data()!));
         }
@@ -138,17 +179,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<EmployeeModel?>> {
       await _firebaseAuth.sendPasswordResetEmail(email: email.trim());
       return true;
     } catch (_) {
-      return true; // Return true to indicate password setup link has been requested
-    }
-  }
-
-  Future<void> signInWithDemoUser(String email) async {
-    state = const AsyncValue.loading();
-    try {
-      final user = await _authRepository.signInWithDemoUser(email);
-      state = AsyncValue.data(user);
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      return true;
     }
   }
 

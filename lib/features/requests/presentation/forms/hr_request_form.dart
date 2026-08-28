@@ -13,6 +13,7 @@ import '../../domain/approval_step_model.dart';
 import '../../domain/request_category_model.dart';
 import '../../domain/request_model.dart';
 import '../../domain/request_status.dart';
+import 'controllers/form_controllers.dart';
 
 class HRRequestForm extends ConsumerStatefulWidget {
   const HRRequestForm({super.key});
@@ -23,11 +24,8 @@ class HRRequestForm extends ConsumerStatefulWidget {
 
 class _HRRequestFormState extends ConsumerState<HRRequestForm> {
   final _formKey = GlobalKey<FormState>();
-  String _category = 'Employment Letter / Verification';
   final _subjectController = TextEditingController();
   final _descriptionController = TextEditingController();
-  bool _isConfidential = false;
-  bool _isSubmitting = false;
 
   final List<String> _categories = [
     'Employment Letter / Verification',
@@ -38,12 +36,20 @@ class _HRRequestFormState extends ConsumerState<HRRequestForm> {
     'General HR Ticket',
   ];
 
+  @override
+  void dispose() {
+    _subjectController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final user = ref.read(authProvider).value;
     if (user == null) return;
 
-    setState(() => _isSubmitting = true);
+    final formState = ref.read(hrFormControllerProvider);
+    ref.read(hrFormControllerProvider.notifier).setSubmitting(true);
 
     final requestId = RequestIdGenerator.generate();
     final newRequest = RequestModel(
@@ -55,10 +61,10 @@ class _HRRequestFormState extends ConsumerState<HRRequestForm> {
       managerEmail: user.reportingManagerEmail,
       requestType: RequestType.hrRequest,
       requestData: {
-        'category': _category,
+        'category': formState.category,
         'subject': _subjectController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'isConfidential': _isConfidential ? 'Yes' : 'No',
+        'isConfidential': formState.isConfidential ? 'Yes' : 'No',
       },
       attachments: [],
       status: RequestStatus.pendingHrApproval,
@@ -83,7 +89,7 @@ class _HRRequestFormState extends ConsumerState<HRRequestForm> {
     final result = await ref.read(requestsProvider.notifier).submitNewRequest(newRequest);
 
     if (mounted) {
-      setState(() => _isSubmitting = false);
+      ref.read(hrFormControllerProvider.notifier).setSubmitting(false);
       if (result != null) {
         context.push('/requests/${result.requestId}');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -95,6 +101,8 @@ class _HRRequestFormState extends ConsumerState<HRRequestForm> {
 
   @override
   Widget build(BuildContext context) {
+    final hrState = ref.watch(hrFormControllerProvider);
+
     return Scaffold(
       appBar: AppBar(title: Text('HR Request & Inquiry', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700))),
       body: Form(
@@ -108,9 +116,14 @@ class _HRRequestFormState extends ConsumerState<HRRequestForm> {
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              initialValue: _category,
-              items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans()))).toList(),
-              onChanged: (v) => setState(() => _category = v!),
+              initialValue: hrState.category,
+              isExpanded: true,
+              items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  ref.read(hrFormControllerProvider.notifier).setCategory(v);
+                }
+              },
               decoration: const InputDecoration(),
             ),
             const SizedBox(height: 16),
@@ -133,15 +146,15 @@ class _HRRequestFormState extends ConsumerState<HRRequestForm> {
             SwitchListTile(
               title: Text('Mark as Confidential', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
               subtitle: Text('Only accessible by HR Operations Leads', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondaryLight)),
-              value: _isConfidential,
+              value: hrState.isConfidential,
               activeThumbColor: AppColors.primary,
-              onChanged: (val) => setState(() => _isConfidential = val),
+              onChanged: (val) => ref.read(hrFormControllerProvider.notifier).setConfidential(val),
             ),
 
             const SizedBox(height: 24),
             CustomButton(
               text: 'Submit HR Ticket',
-              isLoading: _isSubmitting,
+              isLoading: hrState.isSubmitting,
               onPressed: _submit,
             ),
           ],

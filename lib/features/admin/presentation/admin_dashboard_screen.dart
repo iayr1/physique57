@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
@@ -10,18 +11,16 @@ import '../../../core/widgets/custom_button.dart';
 import '../../../core/widgets/custom_text_field.dart';
 import '../../../features/admin/domain/task_model.dart';
 import '../../../features/authentication/domain/employee_model.dart';
+import 'controllers/admin_dashboard_controller.dart';
 
-class AdminDashboardScreen extends StatefulWidget {
+class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
 
   @override
-  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+  ConsumerState<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
-class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  int _selectedTab = 0; // 0 = Overview, 1 = Onboarding, 2 = Requests, 3 = Attendance, 4 = Tasks
-  bool _isLoading = false;
-
+class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   // Onboarding Form Controllers
   final _onboardFormKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -36,29 +35,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _taskFormKey = GlobalKey<FormState>();
   final _taskTitleController = TextEditingController();
   final _taskDescController = TextEditingController();
-  String? _taskAssigneeEmail;
-  String? _taskAssigneeName;
   final DateTime _taskDueDate = DateTime.now().add(const Duration(days: 2));
 
   // Directory Search Controller
   final _searchDirectoryController = TextEditingController();
-  String _searchDirectoryQuery = '';
 
   // Attendance State
-  DateTime _selectedAttendanceDate = DateTime.now();
   final _searchAttendanceController = TextEditingController();
-  String _attendanceSearchQuery = '';
-  String _attendanceFilterStatus = 'All'; // 'All', 'Present', 'Late', 'Not Checked In'
-  int _attendanceTabMode = 0; // 0 = All Employees Status, 1 = Full Attendance Log
 
   // Announcement Controllers
   final _announcementTitleCtrl = TextEditingController();
   final _announcementMsgCtrl = TextEditingController();
-  String _announcementPriority = 'Normal';
 
   // Audit Search Controller
   final _auditSearchCtrl = TextEditingController();
-  String _auditSearchQuery = '';
 
   @override
   void dispose() {
@@ -110,7 +100,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     if (confirm != true) return;
 
-    setState(() => _isLoading = true);
+    ref.read(adminDashboardControllerProvider.notifier).setLoading(true);
     try {
       await FirebaseFirestore.instance.collection('employees').doc(email).update({
         'isActive': newStatus,
@@ -146,7 +136,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) ref.read(adminDashboardControllerProvider.notifier).setLoading(false);
     }
   }
 
@@ -235,20 +225,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     child: Column(
                       children: [
-                        RadioListTile<bool>(
-                          value: true,
-                          groupValue: sendEmailLink,
-                          title: Text('Send Password Setup / Reset Email', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
-                          subtitle: Text('Dispatches official Firebase reset link to $email', style: GoogleFonts.plusJakartaSans(fontSize: 11)),
-                          onChanged: (v) => setModalState(() => sendEmailLink = v!),
+                        InkWell(
+                          onTap: () => setModalState(() => sendEmailLink = true),
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  sendEmailLink ? Icons.radio_button_checked : Icons.radio_button_off,
+                                  color: sendEmailLink ? AppColors.primary : Colors.grey,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Send Password Setup / Reset Email', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
+                                      Text('Dispatches official Firebase reset link to $email', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                         const Divider(height: 1),
-                        RadioListTile<bool>(
-                          value: false,
-                          groupValue: sendEmailLink,
-                          title: Text('Set New Temporary Password', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
-                          subtitle: Text('Admin manually defines a new temporary password', style: GoogleFonts.plusJakartaSans(fontSize: 11)),
-                          onChanged: (v) => setModalState(() => sendEmailLink = v!),
+                        InkWell(
+                          onTap: () => setModalState(() => sendEmailLink = false),
+                          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  !sendEmailLink ? Icons.radio_button_checked : Icons.radio_button_off,
+                                  color: !sendEmailLink ? AppColors.primary : Colors.grey,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Set New Temporary Password', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
+                                      Text('Admin manually defines a new temporary password', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -443,22 +471,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                   const SizedBox(height: 14),
                   Text('Role Permission:', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       Expanded(
-                        child: RadioListTile<String>(
-                          title: const Text('Employee', style: TextStyle(fontSize: 12)),
-                          value: 'employee',
-                          groupValue: role,
-                          onChanged: (v) => setModalState(() => role = v!),
+                        child: ChoiceChip(
+                          label: const Center(child: Text('Employee')),
+                          selected: role == 'employee',
+                          onSelected: (selected) {
+                            if (selected) setModalState(() => role = 'employee');
+                          },
                         ),
                       ),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: RadioListTile<String>(
-                          title: const Text('Admin', style: TextStyle(fontSize: 12)),
-                          value: 'admin',
-                          groupValue: role,
-                          onChanged: (v) => setModalState(() => role = v!),
+                        child: ChoiceChip(
+                          label: const Center(child: Text('Admin')),
+                          selected: role == 'admin',
+                          onSelected: (selected) {
+                            if (selected) setModalState(() => role = 'admin');
+                          },
                         ),
                       ),
                     ],
@@ -545,7 +577,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   // Mark or edit manual attendance for an employee
   Future<void> _markManualAttendance(String email, String name, [Map<String, dynamic>? existingData]) async {
-    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedAttendanceDate);
+    final selectedAttendanceDate = ref.read(adminDashboardControllerProvider).selectedAttendanceDate;
+    final dateStr = DateFormat('yyyy-MM-dd').format(selectedAttendanceDate);
     final docId = 'ATT-$email-$dateStr';
 
     TimeOfDay checkInTime = const TimeOfDay(hour: 9, minute: 0);
@@ -640,7 +673,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   Text('Attendance Status:', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
-                    value: status,
+                    initialValue: status,
                     decoration: const InputDecoration(border: OutlineInputBorder()),
                     items: const [
                       DropdownMenuItem(value: 'Present', child: Text('Present (On Time)')),
@@ -665,9 +698,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
                   try {
                     final checkInDateTime = DateTime(
-                      _selectedAttendanceDate.year,
-                      _selectedAttendanceDate.month,
-                      _selectedAttendanceDate.day,
+                      selectedAttendanceDate.year,
+                      selectedAttendanceDate.month,
+                      selectedAttendanceDate.day,
                       checkInTime.hour,
                       checkInTime.minute,
                     );
@@ -675,9 +708,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     DateTime? checkOutDateTime;
                     if (checkOutTime != null) {
                       checkOutDateTime = DateTime(
-                        _selectedAttendanceDate.year,
-                        _selectedAttendanceDate.month,
-                        _selectedAttendanceDate.day,
+                        selectedAttendanceDate.year,
+                        selectedAttendanceDate.month,
+                        selectedAttendanceDate.day,
                         checkOutTime!.hour,
                         checkOutTime!.minute,
                       );
@@ -713,7 +746,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   // Quick Check In
   Future<void> _quickCheckInEmployee(String email, String name) async {
-    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedAttendanceDate);
+    final selectedAttendanceDate = ref.read(adminDashboardControllerProvider).selectedAttendanceDate;
+    final dateStr = DateFormat('yyyy-MM-dd').format(selectedAttendanceDate);
     final docId = 'ATT-$email-$dateStr';
     final now = DateTime.now();
     final checkInLimit = DateTime(now.year, now.month, now.day, 9, 30);
@@ -746,7 +780,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   // Quick Check Out
   Future<void> _quickCheckOutEmployee(String email, String name) async {
-    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedAttendanceDate);
+    final selectedAttendanceDate = ref.read(adminDashboardControllerProvider).selectedAttendanceDate;
+    final dateStr = DateFormat('yyyy-MM-dd').format(selectedAttendanceDate);
     final docId = 'ATT-$email-$dateStr';
     final now = DateTime.now();
 
@@ -772,7 +807,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // Helper method to onboard a new user without signing out the current admin session
   Future<void> _onboardEmployee() async {
     if (!_onboardFormKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
+    ref.read(adminDashboardControllerProvider.notifier).setLoading(true);
 
     final email = _emailController.text.trim().toLowerCase();
     final password = _passwordController.text.trim();
@@ -891,7 +926,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
                 onPressed: () {
                   Navigator.pop(ctx);
-                  setState(() => _selectedTab = 5);
+                  ref.read(adminDashboardControllerProvider.notifier).setSelectedTab(5);
                 },
                 child: const Text('View in Directory', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
@@ -906,30 +941,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) ref.read(adminDashboardControllerProvider.notifier).setLoading(false);
     }
   }
 
   // Create and assign a task
   Future<void> _assignTask() async {
-    if (!_taskFormKey.currentState!.validate() || _taskAssigneeEmail == null) {
+    final adminState = ref.read(adminDashboardControllerProvider);
+    if (!_taskFormKey.currentState!.validate() || adminState.taskAssigneeEmail == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select an employee and complete form fields'), backgroundColor: AppColors.statusRejected),
       );
       return;
     }
 
-    setState(() => _isLoading = true);
+    ref.read(adminDashboardControllerProvider.notifier).setLoading(true);
     final taskId = 'TSK-${DateTime.now().millisecondsSinceEpoch}';
     final taskTitle = _taskTitleController.text.trim();
     final taskDesc = _taskDescController.text.trim();
+    final adminEmail = FirebaseAuth.instance.currentUser?.email ?? 'admin@physique57.com';
     final task = TaskModel(
       id: taskId,
       title: taskTitle,
       description: taskDesc,
-      assignedToEmail: _taskAssigneeEmail!,
-      assignedToName: _taskAssigneeName ?? _taskAssigneeEmail!,
-      assignedByEmail: 'mayurailead@gmail.com',
+      assignedToEmail: adminState.taskAssigneeEmail!,
+      assignedToName: adminState.taskAssigneeName ?? adminState.taskAssigneeEmail!,
+      assignedByEmail: adminEmail,
       dueDate: _taskDueDate,
       status: 'Pending',
       createdDate: DateTime.now(),
@@ -947,7 +984,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'requestId': '',
         'timestamp': Timestamp.now(),
         'isRead': false,
-        'recipientEmail': _taskAssigneeEmail!,
+        'recipientEmail': adminState.taskAssigneeEmail!,
       });
 
       if (mounted) {
@@ -964,13 +1001,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) ref.read(adminDashboardControllerProvider.notifier).setLoading(false);
     }
   }
 
   // Approve a request with automated leave balance deduction and notifications
   Future<void> _approveRequest(Map<String, dynamic> data, String docId) async {
-    setState(() => _isLoading = true);
+    ref.read(adminDashboardControllerProvider.notifier).setLoading(true);
     final empEmail = data['employeeEmail'] as String? ?? '';
     final empName = data['employeeName'] as String? ?? '';
     final reqTypeStr = data['requestType'] as String? ?? '';
@@ -1014,10 +1051,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       }
 
+      final adminUser = FirebaseAuth.instance.currentUser;
+      final adminEmail = adminUser?.email ?? 'admin@physique57.com';
+      final adminName = adminUser?.displayName?.isNotEmpty == true ? adminUser!.displayName! : 'System Administrator';
+
       // Append approval step
       final newStep = {
         'title': 'Approved by Administrator',
-        'actorName': 'System Administrator (mayurailead@gmail.com)',
+        'actorName': '$adminName ($adminEmail)',
         'actorRole': 'System Administrator',
         'timestamp': Timestamp.now(),
         'isCompleted': true,
@@ -1065,7 +1106,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) ref.read(adminDashboardControllerProvider.notifier).setLoading(false);
     }
   }
 
@@ -1106,15 +1147,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (confirm != true) return;
     final reason = reasonController.text.trim().isEmpty ? 'Rejected by Administrator' : reasonController.text.trim();
 
-    setState(() => _isLoading = true);
+    ref.read(adminDashboardControllerProvider.notifier).setLoading(true);
     final empEmail = data['employeeEmail'] as String? ?? '';
     final reqTypeStr = data['requestType'] as String? ?? '';
     final existingHistory = List<dynamic>.from(data['approvalHistory'] ?? []);
 
     try {
+      final adminUser = FirebaseAuth.instance.currentUser;
+      final adminEmail = adminUser?.email ?? 'admin@physique57.com';
+      final adminName = adminUser?.displayName?.isNotEmpty == true ? adminUser!.displayName! : 'System Administrator';
+
       final newStep = {
         'title': 'Rejected by Administrator',
-        'actorName': 'System Administrator (mayurailead@gmail.com)',
+        'actorName': '$adminName ($adminEmail)',
         'actorRole': 'System Administrator',
         'timestamp': Timestamp.now(),
         'isCompleted': false,
@@ -1152,7 +1197,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) ref.read(adminDashboardControllerProvider.notifier).setLoading(false);
     }
   }
 
@@ -1182,6 +1227,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final adminState = ref.watch(adminDashboardControllerProvider);
     final isMobile = MediaQuery.of(context).size.width < 800;
 
     final sidebarContent = Container(
@@ -1203,43 +1249,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       color: Colors.white,
                       fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 28),
-          // Sidebar Options
-          _buildSidebarItem(0, Icons.dashboard_outlined, 'Overview'),
-          _buildSidebarItem(5, Icons.supervised_user_circle_outlined, 'User Management'),
-          _buildSidebarItem(1, Icons.person_add_alt_1_outlined, '+ Create User'),
-          _buildSidebarItem(2, Icons.assignment_turned_in_outlined, 'Leave & Requests'),
-          _buildSidebarItem(4, Icons.playlist_add_check_rounded, 'Task Management'),
-          _buildSidebarItem(3, Icons.co_present_rounded, 'Attendance Logs'),
-          _buildSidebarItem(6, Icons.campaign_rounded, 'Broadcast Notices'),
-          _buildSidebarItem(7, Icons.receipt_long_rounded, 'Audit Trail & Logs'),
-          const Spacer(),
+          const SizedBox(height: 24),
+          // Navigation Items
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _buildSidebarItem(0, Icons.dashboard_rounded, 'Overview'),
+                _buildSidebarItem(1, Icons.person_add_rounded, '+ Create User'),
+                _buildSidebarItem(2, Icons.approval_rounded, 'Review Requests'),
+                _buildSidebarItem(3, Icons.access_time_rounded, 'Attendance Logs'),
+                _buildSidebarItem(4, Icons.task_rounded, 'Task Management'),
+                _buildSidebarItem(5, Icons.manage_accounts_rounded, 'User Management'),
+                _buildSidebarItem(6, Icons.campaign_rounded, 'Broadcast Notices'),
+                _buildSidebarItem(7, Icons.security_rounded, 'Audit Trail'),
+              ],
+            ),
+          ),
           // Switch to Employee Mode
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.blue.withValues(alpha: 0.15),
+              color: Colors.white.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(10),
             ),
             child: ListTile(
-              leading: const Icon(Icons.badge_outlined, color: Colors.lightBlueAccent),
+              leading: const Icon(Icons.badge_outlined, color: Colors.tealAccent),
               title: Text(
-                'Employee Portal',
-                style: GoogleFonts.plusJakartaSans(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                'Employee View',
+                style: GoogleFonts.plusJakartaSans(color: Colors.tealAccent, fontWeight: FontWeight.bold, fontSize: 13),
               ),
-              onTap: () {
-                context.go('/');
-              },
+              subtitle: Text(
+                'Switch to user interface',
+                style: GoogleFonts.plusJakartaSans(color: Colors.grey[400], fontSize: 11),
+              ),
+              onTap: () => context.go('/'),
             ),
           ),
-          // Logout button
+          // Logout
           ListTile(
             leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
             title: Text(
@@ -1259,7 +1313,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       return Scaffold(
         appBar: AppBar(
           title: Text(
-            ['Overview', '+ Create User', 'Requests', 'Attendance Logs', 'Task Management', 'User Management', 'Broadcast Notices', 'Audit Trail'][_selectedTab],
+            ['Overview', '+ Create User', 'Requests', 'Attendance Logs', 'Task Management', 'User Management', 'Broadcast Notices', 'Audit Trail'][adminState.selectedTab],
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 17),
           ),
           backgroundColor: const Color(0xFF0F172A),
@@ -1322,9 +1376,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildNavPill(int index, IconData icon, String title) {
-    final isSelected = _selectedTab == index;
+    final adminState = ref.watch(adminDashboardControllerProvider);
+    final isSelected = adminState.selectedTab == index;
     return GestureDetector(
-      onTap: () => setState(() => _selectedTab = index),
+      onTap: () => ref.read(adminDashboardControllerProvider.notifier).setSelectedTab(index),
       child: Container(
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -1355,7 +1410,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildSidebarItem(int index, IconData icon, String title) {
-    final isSelected = _selectedTab == index;
+    final adminState = ref.watch(adminDashboardControllerProvider);
+    final isSelected = adminState.selectedTab == index;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
@@ -1376,14 +1432,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
           }
-          setState(() => _selectedTab = index);
+          ref.read(adminDashboardControllerProvider.notifier).setSelectedTab(index);
         },
       ),
     );
   }
 
   Widget _buildSelectedView() {
-    switch (_selectedTab) {
+    final adminState = ref.watch(adminDashboardControllerProvider);
+    switch (adminState.selectedTab) {
       case 0:
         return _buildOverviewTab();
       case 1:
@@ -1511,7 +1568,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             subtitle: 'Create login & auto-send welcome email',
                             icon: Icons.person_add_rounded,
                             color: AppColors.primary,
-                            onTap: () => setState(() => _selectedTab = 1),
+                            onTap: () => ref.read(adminDashboardControllerProvider.notifier).setSelectedTab(1),
                             width: isMobile ? double.infinity : 280,
                           ),
                           _buildQuickActionTile(
@@ -1519,7 +1576,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             subtitle: 'Activate/deactivate app access ($deactivatedLogins inactive)',
                             icon: Icons.manage_accounts_rounded,
                             color: Colors.teal,
-                            onTap: () => setState(() => _selectedTab = 5),
+                            onTap: () => ref.read(adminDashboardControllerProvider.notifier).setSelectedTab(5),
                             width: isMobile ? double.infinity : 280,
                           ),
                           _buildQuickActionTile(
@@ -1527,7 +1584,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             subtitle: '$pendingLeaves pending automated deduction',
                             icon: Icons.approval_rounded,
                             color: Colors.orange,
-                            onTap: () => setState(() => _selectedTab = 2),
+                            onTap: () => ref.read(adminDashboardControllerProvider.notifier).setSelectedTab(2),
                             width: isMobile ? double.infinity : 280,
                           ),
                           _buildQuickActionTile(
@@ -1535,7 +1592,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             subtitle: 'Delegate tasks and track completion',
                             icon: Icons.add_task_rounded,
                             color: Colors.indigo,
-                            onTap: () => setState(() => _selectedTab = 4),
+                            onTap: () => ref.read(adminDashboardControllerProvider.notifier).setSelectedTab(4),
                             width: isMobile ? double.infinity : 280,
                           ),
                         ],
@@ -1551,7 +1608,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
                           ),
                           TextButton(
-                            onPressed: () => setState(() => _selectedTab = 2),
+                            onPressed: () => ref.read(adminDashboardControllerProvider.notifier).setSelectedTab(2),
                             child: const Text('View All'),
                           ),
                         ],
@@ -1837,7 +1894,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   const SizedBox(height: 24),
                   CustomButton(
                     text: 'Onboard Employee & Send Welcome Email',
-                    isLoading: _isLoading,
+                    isLoading: ref.watch(adminDashboardControllerProvider).isLoading,
                     onPressed: _onboardEmployee,
                   ),
                 ],
@@ -2005,7 +2062,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildAttendanceTab() {
-    final selectedDateStr = DateFormat('yyyy-MM-dd').format(_selectedAttendanceDate);
+    final adminState = ref.watch(adminDashboardControllerProvider);
+    final adminNotifier = ref.read(adminDashboardControllerProvider.notifier);
+    final selectedDateStr = DateFormat('yyyy-MM-dd').format(adminState.selectedAttendanceDate);
     final isToday = DateFormat('yyyy-MM-dd').format(DateTime.now()) == selectedDateStr;
 
     return Column(
@@ -2049,9 +2108,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 icon: const Icon(Icons.chevron_left_rounded, size: 22),
                 tooltip: 'Previous Day',
                 onPressed: () {
-                  setState(() {
-                    _selectedAttendanceDate = _selectedAttendanceDate.subtract(const Duration(days: 1));
-                  });
+                  adminNotifier.setSelectedAttendanceDate(
+                    adminState.selectedAttendanceDate.subtract(const Duration(days: 1)),
+                  );
                 },
               ),
               Expanded(
@@ -2059,12 +2118,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   onTap: () async {
                     final picked = await showDatePicker(
                       context: context,
-                      initialDate: _selectedAttendanceDate,
+                      initialDate: adminState.selectedAttendanceDate,
                       firstDate: DateTime(2020),
                       lastDate: DateTime.now().add(const Duration(days: 30)),
                     );
                     if (picked != null) {
-                      setState(() => _selectedAttendanceDate = picked);
+                      adminNotifier.setSelectedAttendanceDate(picked);
                     }
                   },
                   borderRadius: BorderRadius.circular(8),
@@ -2076,7 +2135,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.primary),
                         const SizedBox(width: 8),
                         Text(
-                          isToday ? 'Today, ${DateFormat('dd MMM yyyy').format(_selectedAttendanceDate)}' : DateFormat('EEE, dd MMM yyyy').format(_selectedAttendanceDate),
+                          isToday ? 'Today, ${DateFormat('dd MMM yyyy').format(adminState.selectedAttendanceDate)}' : DateFormat('EEE, dd MMM yyyy').format(adminState.selectedAttendanceDate),
                           style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF0F172A)),
                         ),
                       ],
@@ -2088,15 +2147,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 icon: const Icon(Icons.chevron_right_rounded, size: 22),
                 tooltip: 'Next Day',
                 onPressed: () {
-                  setState(() {
-                    _selectedAttendanceDate = _selectedAttendanceDate.add(const Duration(days: 1));
-                  });
+                  adminNotifier.setSelectedAttendanceDate(
+                    adminState.selectedAttendanceDate.add(const Duration(days: 1)),
+                  );
                 },
               ),
               if (!isToday) ...[
                 const SizedBox(width: 4),
                 TextButton(
-                  onPressed: () => setState(() => _selectedAttendanceDate = DateTime.now()),
+                  onPressed: () => adminNotifier.setSelectedAttendanceDate(DateTime.now()),
                   child: const Text('Today', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 ),
               ],
@@ -2110,14 +2169,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Expanded(
               child: InkWell(
-                onTap: () => setState(() => _attendanceTabMode = 0),
+                onTap: () => adminNotifier.setAttendanceTabMode(0),
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
-                    color: _attendanceTabMode == 0 ? AppColors.primary : Colors.white,
+                    color: adminState.attendanceTabMode == 0 ? AppColors.primary : Colors.white,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _attendanceTabMode == 0 ? AppColors.primary : const Color(0xFFE2E8F0)),
+                    border: Border.all(color: adminState.attendanceTabMode == 0 ? AppColors.primary : const Color(0xFFE2E8F0)),
                   ),
                   child: Center(
                     child: Text(
@@ -2125,7 +2184,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
-                        color: _attendanceTabMode == 0 ? Colors.white : const Color(0xFF334155),
+                        color: adminState.attendanceTabMode == 0 ? Colors.white : const Color(0xFF334155),
                       ),
                     ),
                   ),
@@ -2135,14 +2194,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: InkWell(
-                onTap: () => setState(() => _attendanceTabMode = 1),
+                onTap: () => adminNotifier.setAttendanceTabMode(1),
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
-                    color: _attendanceTabMode == 1 ? AppColors.primary : Colors.white,
+                    color: adminState.attendanceTabMode == 1 ? AppColors.primary : Colors.white,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _attendanceTabMode == 1 ? AppColors.primary : const Color(0xFFE2E8F0)),
+                    border: Border.all(color: adminState.attendanceTabMode == 1 ? AppColors.primary : const Color(0xFFE2E8F0)),
                   ),
                   child: Center(
                     child: Text(
@@ -2150,7 +2209,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
-                        color: _attendanceTabMode == 1 ? Colors.white : const Color(0xFF334155),
+                        color: adminState.attendanceTabMode == 1 ? Colors.white : const Color(0xFF334155),
                       ),
                     ),
                   ),
@@ -2167,12 +2226,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           decoration: InputDecoration(
             hintText: 'Search employee name, email, or status...',
             prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
-            suffixIcon: _attendanceSearchQuery.isNotEmpty
+            suffixIcon: adminState.attendanceSearchQuery.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.clear_rounded),
                     onPressed: () {
                       _searchAttendanceController.clear();
-                      setState(() => _attendanceSearchQuery = '');
+                      adminNotifier.setAttendanceSearchQuery('');
                     },
                   )
                 : null,
@@ -2182,13 +2241,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
           ),
-          onChanged: (v) => setState(() => _attendanceSearchQuery = v.trim().toLowerCase()),
+          onChanged: (v) => adminNotifier.setAttendanceSearchQuery(v.trim().toLowerCase()),
         ),
         const SizedBox(height: 12),
 
         // Main Attendance Body
         Expanded(
-          child: _attendanceTabMode == 0
+          child: adminState.attendanceTabMode == 0
               ? _buildDailyAllEmployeesAttendanceView(selectedDateStr)
               : _buildHistoricalAttendanceLogView(),
         ),
@@ -2197,6 +2256,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildDailyAllEmployeesAttendanceView(String dateStr) {
+    final adminState = ref.watch(adminDashboardControllerProvider);
+    final adminNotifier = ref.read(adminDashboardControllerProvider.notifier);
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('employees').snapshots(),
       builder: (context, empSnapshot) {
@@ -2255,18 +2317,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               final dept = (data['department'] ?? '').toString().toLowerCase();
               final att = attendanceMap[email];
 
-              final matchesQuery = _attendanceSearchQuery.isEmpty ||
-                  name.contains(_attendanceSearchQuery) ||
-                  email.contains(_attendanceSearchQuery) ||
-                  dept.contains(_attendanceSearchQuery);
+              final matchesQuery = adminState.attendanceSearchQuery.isEmpty ||
+                  name.contains(adminState.attendanceSearchQuery) ||
+                  email.contains(adminState.attendanceSearchQuery) ||
+                  dept.contains(adminState.attendanceSearchQuery);
 
               if (!matchesQuery) return false;
 
-              if (_attendanceFilterStatus == 'Present') {
+              if (adminState.attendanceFilterStatus == 'Present') {
                 return att != null && att['status'] != 'Late';
-              } else if (_attendanceFilterStatus == 'Late') {
+              } else if (adminState.attendanceFilterStatus == 'Late') {
                 return att != null && att['status'] == 'Late';
-              } else if (_attendanceFilterStatus == 'Not Checked In') {
+              } else if (adminState.attendanceFilterStatus == 'Not Checked In') {
                 return att == null;
               }
               return true;
@@ -2279,13 +2341,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _buildAttendanceStatCard('Total Users', '${empDocs.length}', const Color(0xFF0F172A), () => setState(() => _attendanceFilterStatus = 'All'), _attendanceFilterStatus == 'All'),
+                      _buildAttendanceStatCard('Total Users', '${empDocs.length}', const Color(0xFF0F172A), () => adminNotifier.setAttendanceFilterStatus('All'), adminState.attendanceFilterStatus == 'All'),
                       const SizedBox(width: 8),
-                      _buildAttendanceStatCard('Present', '$presentCount', Colors.green, () => setState(() => _attendanceFilterStatus = 'Present'), _attendanceFilterStatus == 'Present'),
+                      _buildAttendanceStatCard('Present', '$presentCount', Colors.green, () => adminNotifier.setAttendanceFilterStatus('Present'), adminState.attendanceFilterStatus == 'Present'),
                       const SizedBox(width: 8),
-                      _buildAttendanceStatCard('Late', '$lateCount', Colors.orange, () => setState(() => _attendanceFilterStatus = 'Late'), _attendanceFilterStatus == 'Late'),
+                      _buildAttendanceStatCard('Late', '$lateCount', Colors.orange, () => adminNotifier.setAttendanceFilterStatus('Late'), adminState.attendanceFilterStatus == 'Late'),
                       const SizedBox(width: 8),
-                      _buildAttendanceStatCard('Not Checked In', '$notCheckedInCount', Colors.red, () => setState(() => _attendanceFilterStatus = 'Not Checked In'), _attendanceFilterStatus == 'Not Checked In'),
+                      _buildAttendanceStatCard('Not Checked In', '$notCheckedInCount', Colors.red, () => adminNotifier.setAttendanceFilterStatus('Not Checked In'), adminState.attendanceFilterStatus == 'Not Checked In'),
                     ],
                   ),
                 ),
@@ -2294,7 +2356,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 // Employee Cards List
                 Expanded(
                   child: filteredEmployees.isEmpty
-                      ? Center(child: Text('No employees match filter "$_attendanceFilterStatus"', style: GoogleFonts.plusJakartaSans(color: Colors.grey)))
+                      ? Center(child: Text('No employees match filter "${adminState.attendanceFilterStatus}"', style: GoogleFonts.plusJakartaSans(color: Colors.grey)))
                       : ListView.builder(
                           itemCount: filteredEmployees.length,
                           itemBuilder: (context, index) {
@@ -2551,6 +2613,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           return timeB.compareTo(timeA);
         });
 
+        final adminState = ref.watch(adminDashboardControllerProvider);
+
         // Filter by query
         final filteredDocs = sortedDocs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
@@ -2559,16 +2623,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           final date = (data['date'] ?? '').toString().toLowerCase();
           final status = (data['status'] ?? '').toString().toLowerCase();
 
-          if (_attendanceSearchQuery.isEmpty) return true;
-          return name.contains(_attendanceSearchQuery) ||
-              email.contains(_attendanceSearchQuery) ||
-              date.contains(_attendanceSearchQuery) ||
-              status.contains(_attendanceSearchQuery);
+          if (adminState.attendanceSearchQuery.isEmpty) return true;
+          return name.contains(adminState.attendanceSearchQuery) ||
+              email.contains(adminState.attendanceSearchQuery) ||
+              date.contains(adminState.attendanceSearchQuery) ||
+              status.contains(adminState.attendanceSearchQuery);
         }).toList();
 
         if (filteredDocs.isEmpty) {
           return Center(
-            child: Text('No logs match "$_attendanceSearchQuery"', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+            child: Text('No logs match "${adminState.attendanceSearchQuery}"', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
           );
         }
 
@@ -2642,6 +2706,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildTasksTab() {
+    final adminState = ref.watch(adminDashboardControllerProvider);
+    final adminNotifier = ref.read(adminDashboardControllerProvider.notifier);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 800;
@@ -2667,7 +2734,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   builder: (context, snapshot) {
                     final list = snapshot.data?.docs ?? [];
                     return DropdownButtonFormField<String>(
-                      initialValue: _taskAssigneeEmail,
+                      initialValue: adminState.taskAssigneeEmail,
                       hint: const Text('Select Assignee'),
                       isExpanded: true,
                       items: list.map((doc) {
@@ -2678,10 +2745,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       onChanged: (email) {
                         if (email != null) {
                           final doc = list.firstWhere((element) => element['email'] == email);
-                          setState(() {
-                            _taskAssigneeEmail = email;
-                            _taskAssigneeName = doc['name'];
-                          });
+                          adminNotifier.setTaskAssignee(
+                            email: email,
+                            name: doc['name'],
+                          );
                         }
                       },
                       validator: (v) => v == null ? 'Assignee required' : null,
@@ -2705,7 +2772,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(height: 16),
                 CustomButton(
                   text: 'Assign Task & Notify',
-                  isLoading: _isLoading,
+                  isLoading: adminState.isLoading,
                   onPressed: _assignTask,
                 ),
               ],
@@ -2825,6 +2892,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildDirectoryTab() {
+    final adminState = ref.watch(adminDashboardControllerProvider);
+    final adminNotifier = ref.read(adminDashboardControllerProvider.notifier);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2837,12 +2907,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'User Management Center',
+                    'Employee Directory & Access Control',
                     style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Create users, delete accounts, change passwords, and manage app access permissions.',
+                    'Manage employee profiles, leave allowances, and toggle login access.',
                     style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600]),
                   ),
                 ],
@@ -2856,7 +2926,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
               icon: const Icon(Icons.person_add_alt_1_rounded, size: 18, color: Colors.white),
               label: const Text('+ Create User', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              onPressed: () => setState(() => _selectedTab = 1),
+              onPressed: () => adminNotifier.setSelectedTab(1),
             ),
           ],
         ),
@@ -2868,12 +2938,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           decoration: InputDecoration(
             hintText: 'Search by name, email, department, or status...',
             prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
-            suffixIcon: _searchDirectoryQuery.isNotEmpty
+            suffixIcon: adminState.searchDirectoryQuery.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.clear_rounded),
                     onPressed: () {
                       _searchDirectoryController.clear();
-                      setState(() => _searchDirectoryQuery = '');
+                      adminNotifier.setSearchDirectoryQuery('');
                     },
                   )
                 : null,
@@ -2889,7 +2959,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
           ),
-          onChanged: (val) => setState(() => _searchDirectoryQuery = val.trim().toLowerCase()),
+          onChanged: (val) => adminNotifier.setSearchDirectoryQuery(val.trim().toLowerCase()),
         ),
         const SizedBox(height: 16),
 
@@ -2916,7 +2986,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         icon: const Icon(Icons.person_add_rounded, color: Colors.white),
                         label: const Text('Onboard First Employee', style: TextStyle(color: Colors.white)),
                         style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                        onPressed: () => setState(() => _selectedTab = 1),
+                        onPressed: () => adminNotifier.setSelectedTab(1),
                       ),
                     ],
                   ),
@@ -2930,16 +3000,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 final email = (data['email'] ?? '').toString().toLowerCase();
                 final dept = (data['department'] ?? '').toString().toLowerCase();
                 final status = (data['status'] ?? '').toString().toLowerCase();
-                if (_searchDirectoryQuery.isEmpty) return true;
-                return name.contains(_searchDirectoryQuery) ||
-                    email.contains(_searchDirectoryQuery) ||
-                    dept.contains(_searchDirectoryQuery) ||
-                    status.contains(_searchDirectoryQuery);
+                if (adminState.searchDirectoryQuery.isEmpty) return true;
+                return name.contains(adminState.searchDirectoryQuery) ||
+                    email.contains(adminState.searchDirectoryQuery) ||
+                    dept.contains(adminState.searchDirectoryQuery) ||
+                    status.contains(adminState.searchDirectoryQuery);
               }).toList();
 
               if (docs.isEmpty) {
                 return Center(
-                  child: Text('No employees match "$_searchDirectoryQuery"', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
+                  child: Text('No employees match "${adminState.searchDirectoryQuery}"', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
                 );
               }
 
@@ -2954,7 +3024,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   final desig = data['designation'] ?? 'Staff';
                   final mgr = data['reportingManagerName'] ?? 'N/A';
                   final role = data['role'] ?? 'employee';
-                  final isAdmin = role == 'admin' || email == 'mayurailead@gmail.com';
+                  final isAdmin = role == 'admin' || desig.toLowerCase().contains('admin');
 
                   final rawIsActive = data['isActive'];
                   final bool isActive = rawIsActive is bool ? rawIsActive : (data['status'] != 'deactivated');
@@ -3179,16 +3249,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildAnnouncementsTab() {
+    final adminState = ref.watch(adminDashboardControllerProvider);
+    final adminNotifier = ref.read(adminDashboardControllerProvider.notifier);
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Broadcast Announcements & Notices', style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))),
+          Text('Company Announcements & Broadcasts', style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))),
           const SizedBox(height: 4),
-          Text('Publish company-wide announcements. Automatically notifies all employees in real-time.', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          Text('Publish urgent notices, HR policies, and all-hands updates across all employee devices.', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
           const SizedBox(height: 20),
 
-          // Broadcast Creator Card
+          // Broadcast Compose Card
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -3199,11 +3272,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Create New Organization Notice', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('Create Announcement', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 14),
                 CustomTextField(
-                  label: 'Announcement Title',
-                  hint: 'e.g. Office Holiday Notice / Townhall Meeting',
+                  label: 'Notice Title',
+                  hint: 'e.g. Office Relocation, Holiday Calendar, Townhall',
                   controller: _announcementTitleCtrl,
                 ),
                 CustomTextField(
@@ -3216,7 +3289,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Text('Priority Level:', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  value: _announcementPriority,
+                  initialValue: adminState.announcementPriority,
                   decoration: const InputDecoration(border: OutlineInputBorder()),
                   items: const [
                     DropdownMenuItem(value: 'Normal', child: Text('Normal (General Information)')),
@@ -3224,13 +3297,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     DropdownMenuItem(value: 'Urgent', child: Text('🚨 Urgent (Action Required)')),
                   ],
                   onChanged: (v) {
-                    if (v != null) setState(() => _announcementPriority = v);
+                    if (v != null) adminNotifier.setAnnouncementPriority(v);
                   },
                 ),
                 const SizedBox(height: 18),
                 CustomButton(
                   text: 'Broadcast Notice & Notify All Employees',
-                  isLoading: _isLoading,
+                  isLoading: adminState.isLoading,
                   onPressed: () async {
                     final title = _announcementTitleCtrl.text.trim();
                     final msg = _announcementMsgCtrl.text.trim();
@@ -3241,14 +3314,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       return;
                     }
 
-                    setState(() => _isLoading = true);
+                    adminNotifier.setLoading(true);
                     try {
                       final notifId = 'ANN-${DateTime.now().millisecondsSinceEpoch}';
                       await FirebaseFirestore.instance.collection('announcements').doc(notifId).set({
                         'id': notifId,
                         'title': title,
                         'message': msg,
-                        'priority': _announcementPriority,
+                        'priority': adminState.announcementPriority,
                         'createdBy': 'System Administrator',
                         'createdAt': Timestamp.now(),
                       });
@@ -3267,10 +3340,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
                       // Audit log
                       final audId = 'AUD-${DateTime.now().millisecondsSinceEpoch}';
+                      final adminEmail = FirebaseAuth.instance.currentUser?.email ?? 'admin@physique57.com';
                       await FirebaseFirestore.instance.collection('audit_logs').doc(audId).set({
                         'id': audId,
                         'action': 'ANNOUNCEMENT_BROADCAST',
-                        'performedBy': 'mayurailead@gmail.com',
+                        'performedBy': adminEmail,
                         'targetEmail': 'all',
                         'details': 'Title: $title ($notifId)',
                         'timestamp': Timestamp.now(),
@@ -3290,7 +3364,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         );
                       }
                     } finally {
-                      if (mounted) setState(() => _isLoading = false);
+                      if (mounted) adminNotifier.setLoading(false);
                     }
                   },
                 ),
@@ -3389,6 +3463,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildAuditLogsTab() {
+    final adminState = ref.watch(adminDashboardControllerProvider);
+    final adminNotifier = ref.read(adminDashboardControllerProvider.notifier);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3403,12 +3480,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           decoration: InputDecoration(
             hintText: 'Search audit logs by action, actor, or target email...',
             prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
-            suffixIcon: _auditSearchQuery.isNotEmpty
+            suffixIcon: adminState.auditSearchQuery.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.clear_rounded),
                     onPressed: () {
                       _auditSearchCtrl.clear();
-                      setState(() => _auditSearchQuery = '');
+                      adminNotifier.setAuditSearchQuery('');
                     },
                   )
                 : null,
@@ -3418,7 +3495,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
           ),
-          onChanged: (v) => setState(() => _auditSearchQuery = v.trim().toLowerCase()),
+          onChanged: (v) => adminNotifier.setAuditSearchQuery(v.trim().toLowerCase()),
         ),
         const SizedBox(height: 16),
 
@@ -3453,15 +3530,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 final target = (data['targetEmail'] ?? '').toString().toLowerCase();
                 final details = (data['details'] ?? '').toString().toLowerCase();
 
-                if (_auditSearchQuery.isEmpty) return true;
-                return act.contains(_auditSearchQuery) ||
-                    by.contains(_auditSearchQuery) ||
-                    target.contains(_auditSearchQuery) ||
-                    details.contains(_auditSearchQuery);
+                if (adminState.auditSearchQuery.isEmpty) return true;
+                return act.contains(adminState.auditSearchQuery) ||
+                    by.contains(adminState.auditSearchQuery) ||
+                    target.contains(adminState.auditSearchQuery) ||
+                    details.contains(adminState.auditSearchQuery);
               }).toList();
 
               if (filtered.isEmpty) {
-                return Center(child: Text('No audit logs match "$_auditSearchQuery"', style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
+                return Center(child: Text('No audit logs match "${adminState.auditSearchQuery}"', style: GoogleFonts.plusJakartaSans(color: Colors.grey)));
               }
 
               return ListView.builder(

@@ -13,6 +13,7 @@ import '../../../providers/notification_provider.dart';
 import '../../../providers/announcement_provider.dart';
 import '../../announcements/domain/announcement_model.dart';
 import '../domain/holiday_model.dart';
+import 'controllers/dashboard_controller.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -22,8 +23,6 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  String _taskFilter = 'All'; // 'All', 'Pending', 'In Progress', 'Completed'
-
   String _getGreeting() {
     final hour = DateTime.now().hour;
     if (hour >= 5 && hour < 12) return 'Good Morning 🌅';
@@ -33,17 +32,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   int _getBaseSalary(dynamic user) {
-    if (user.isAdmin || user.email.toLowerCase() == 'mayurailead@gmail.com') {
+    if (user.baseSalary != null && user.baseSalary > 0) {
+      return user.baseSalary.round();
+    }
+    if (user.isAdmin) {
       return 125000;
     }
-    final des = user.designation.toString().toLowerCase();
-    if (des.contains('lead') || des.contains('manager') || des.contains('director') || des.contains('senior')) {
-      return 95000;
-    }
-    if (des.contains('trainer') || des.contains('specialist') || des.contains('instructor') || des.contains('engineer')) {
-      return 75000;
-    }
-    return 55000;
+    return 65000;
   }
 
   @override
@@ -100,7 +95,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               children: [
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.12),
                   child: (user.photoUrl.isNotEmpty)
                       ? ClipOval(
                           child: Image.network(
@@ -123,8 +118,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   bottom: 0,
                   right: 0,
                   child: Container(
-                    width: 11,
-                    height: 11,
+                    width: 12,
+                    height: 12,
                     decoration: BoxDecoration(
                       color: Colors.green,
                       shape: BoxShape.circle,
@@ -135,27 +130,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ],
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _getGreeting(),
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _getGreeting(),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                Text(
-                  user.name,
-                  style: GoogleFonts.outfit(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                    color: isDark ? Colors.white : AppColors.textPrimaryLight,
+                  Text(
+                    user.name,
+                    style: GoogleFonts.outfit(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                      color: isDark ? Colors.white : AppColors.textPrimaryLight,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -176,10 +178,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.red,
+                      color: AppColors.statusRejected,
                       shape: BoxShape.circle,
                       boxShadow: [
-                        BoxShadow(color: Colors.red.withValues(alpha: 0.5), blurRadius: 6, spreadRadius: 1),
+                        BoxShadow(color: AppColors.statusRejected.withValues(alpha: 0.5), blurRadius: 6, spreadRadius: 1),
                       ],
                     ),
                     constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
@@ -192,7 +194,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
             ],
           ),
-          if (user.isAdmin || user.email.toLowerCase() == 'mayurailead@gmail.com')
+          if (user.isAdmin)
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: IconButton(
@@ -238,32 +240,44 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.calendar_today_rounded, color: Colors.white, size: 12),
-                            const SizedBox(width: 6),
-                            Text(
-                              DateFormat('EEEE, MMM d, yyyy').format(DateTime.now()),
-                              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-                            ),
-                          ],
+                      Flexible(
+                        flex: 5,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.calendar_today_rounded, color: Colors.white, size: 12),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  DateFormat('EEE, MMM d, yyyy').format(DateTime.now()),
+                                  style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          user.department.isNotEmpty ? user.department : 'Physique 57',
-                          style: GoogleFonts.outfit(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        flex: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            user.department.isNotEmpty ? user.department : 'Physique 57',
+                            style: GoogleFonts.outfit(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                     ],
@@ -701,10 +715,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Leave Quota & Health',
-                          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17),
+                        Expanded(
+                          child: Text(
+                            'Leave Quota & Health',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
@@ -712,7 +730,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            '${(totalUtilizationPct * 100).toInt()}% Used ($totalLeavesUsed / $totalLeavesAllotted Days)',
+                            '${(totalUtilizationPct * 100).toInt()}% Used ($totalLeavesUsed/$totalLeavesAllotted)',
                             style: GoogleFonts.outfit(color: Colors.purple, fontSize: 11, fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -795,17 +813,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Estimated Net Take-Home', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey)),
-                              const SizedBox(height: 2),
-                              Text(
-                                '$formattedNetPay / mo',
-                                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: const Color(0xFF0F172A)),
-                              ),
-                            ],
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Estimated Net Take-Home', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '$formattedNetPay / mo',
+                                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: const Color(0xFF0F172A)),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 10),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
@@ -876,9 +898,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: ['All', 'In Progress', 'Pending', 'Completed'].map((f) {
-                  final isSelected = _taskFilter == f;
+                  final taskFilter = ref.watch(dashboardTaskFilterProvider);
+                  final isSelected = taskFilter == f;
                   return GestureDetector(
-                    onTap: () => setState(() => _taskFilter = f),
+                    onTap: () => ref.read(dashboardTaskFilterProvider.notifier).state = f,
                     child: Container(
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -904,9 +927,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
             tasksState.when(
               data: (tasks) {
+                final currentTaskFilter = ref.watch(dashboardTaskFilterProvider);
                 final filteredTasks = tasks.where((t) {
-                  if (_taskFilter == 'All') return true;
-                  return t.status.toLowerCase() == _taskFilter.toLowerCase();
+                  if (currentTaskFilter == 'All') return true;
+                  return t.status.toLowerCase() == currentTaskFilter.toLowerCase();
                 }).toList();
 
                 if (filteredTasks.isEmpty) {
@@ -920,7 +944,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
                       child: Center(
                         child: Text(
-                          'No $_taskFilter tasks found.',
+                          'No $currentTaskFilter tasks found.',
                           style: GoogleFonts.plusJakartaSans(color: Colors.grey),
                         ),
                       ),
@@ -1002,11 +1026,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  'Due: ${DateFormat('yyyy-MM-dd').format(task.dueDate)}',
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 11, color: isOverdue ? Colors.red : Colors.grey[500]),
+                                Expanded(
+                                  child: Text(
+                                    'Due: ${DateFormat('yyyy-MM-dd').format(task.dueDate)}',
+                                    style: GoogleFonts.plusJakartaSans(fontSize: 11, color: isOverdue ? Colors.red : Colors.grey[500]),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
+                                const SizedBox(width: 8),
                                 Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     if (!isCompleted && !isInProgress)
                                       TextButton(
@@ -1016,7 +1045,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                         },
                                         child: Text('Start Task', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold)),
                                       ),
-                                    if (!isCompleted)
+                                    if (!isCompleted) ...[
+                                      const SizedBox(width: 4),
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.green,
@@ -1030,6 +1060,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                         },
                                         child: Text('Mark Done', style: GoogleFonts.outfit(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                                       ),
+                                    ],
                                   ],
                                 ),
                               ],

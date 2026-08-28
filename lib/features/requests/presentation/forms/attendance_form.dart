@@ -13,6 +13,7 @@ import '../../domain/approval_step_model.dart';
 import '../../domain/request_category_model.dart';
 import '../../domain/request_model.dart';
 import '../../domain/request_status.dart';
+import 'controllers/form_controllers.dart';
 
 class AttendanceForm extends ConsumerStatefulWidget {
   const AttendanceForm({super.key});
@@ -23,25 +24,26 @@ class AttendanceForm extends ConsumerStatefulWidget {
 
 class _AttendanceFormState extends ConsumerState<AttendanceForm> {
   final _formKey = GlobalKey<FormState>();
-  DateTime? _attendanceDate = DateTime.now();
-  TimeOfDay _checkIn = const TimeOfDay(hour: 9, minute: 0);
-  TimeOfDay _checkOut = const TimeOfDay(hour: 18, minute: 0);
   final _reasonController = TextEditingController();
-  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickTime(bool isCheckIn) async {
+    final formState = ref.read(attendanceFormControllerProvider);
     final picked = await showTimePicker(
       context: context,
-      initialTime: isCheckIn ? _checkIn : _checkOut,
+      initialTime: isCheckIn ? formState.checkIn : formState.checkOut,
     );
     if (picked != null) {
-      setState(() {
-        if (isCheckIn) {
-          _checkIn = picked;
-        } else {
-          _checkOut = picked;
-        }
-      });
+      if (isCheckIn) {
+        ref.read(attendanceFormControllerProvider.notifier).setCheckIn(picked);
+      } else {
+        ref.read(attendanceFormControllerProvider.notifier).setCheckOut(picked);
+      }
     }
   }
 
@@ -50,7 +52,8 @@ class _AttendanceFormState extends ConsumerState<AttendanceForm> {
     final user = ref.read(authProvider).value;
     if (user == null) return;
 
-    setState(() => _isSubmitting = true);
+    final formState = ref.read(attendanceFormControllerProvider);
+    ref.read(attendanceFormControllerProvider.notifier).setSubmitting(true);
 
     final requestId = RequestIdGenerator.generate();
     final newRequest = RequestModel(
@@ -62,9 +65,9 @@ class _AttendanceFormState extends ConsumerState<AttendanceForm> {
       managerEmail: user.reportingManagerEmail,
       requestType: RequestType.attendance,
       requestData: {
-        'attendanceDate': DateFormatter.formatDateShort(_attendanceDate!),
-        'checkInTime': _checkIn.format(context),
-        'checkOutTime': _checkOut.format(context),
+        'attendanceDate': DateFormatter.formatDateShort(formState.attendanceDate ?? DateTime.now()),
+        'checkInTime': formState.checkIn.format(context),
+        'checkOutTime': formState.checkOut.format(context),
         'reason': _reasonController.text.trim(),
       },
       attachments: [],
@@ -91,7 +94,7 @@ class _AttendanceFormState extends ConsumerState<AttendanceForm> {
     final result = await ref.read(requestsProvider.notifier).submitNewRequest(newRequest);
 
     if (mounted) {
-      setState(() => _isSubmitting = false);
+      ref.read(attendanceFormControllerProvider.notifier).setSubmitting(false);
       if (result != null) {
         context.push('/requests/${result.requestId}');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -106,6 +109,8 @@ class _AttendanceFormState extends ConsumerState<AttendanceForm> {
 
   @override
   Widget build(BuildContext context) {
+    final formState = ref.watch(attendanceFormControllerProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Attendance Correction')),
       body: Form(
@@ -117,19 +122,21 @@ class _AttendanceFormState extends ConsumerState<AttendanceForm> {
               label: 'Attendance Date',
               readOnly: true,
               controller: TextEditingController(
-                text: _attendanceDate != null
-                    ? DateFormatter.formatDateShort(_attendanceDate!)
+                text: formState.attendanceDate != null
+                    ? DateFormatter.formatDateShort(formState.attendanceDate!)
                     : '',
               ),
               suffixIcon: const Icon(Icons.calendar_today_rounded),
               onTap: () async {
                 final picked = await showDatePicker(
                   context: context,
-                  initialDate: _attendanceDate ?? DateTime.now(),
+                  initialDate: formState.attendanceDate ?? DateTime.now(),
                   firstDate: DateTime.now().subtract(const Duration(days: 60)),
                   lastDate: DateTime.now(),
                 );
-                if (picked != null) setState(() => _attendanceDate = picked);
+                if (picked != null) {
+                  ref.read(attendanceFormControllerProvider.notifier).setAttendanceDate(picked);
+                }
               },
             ),
 
@@ -139,7 +146,7 @@ class _AttendanceFormState extends ConsumerState<AttendanceForm> {
                   child: CustomTextField(
                     label: 'Check-In Time',
                     readOnly: true,
-                    controller: TextEditingController(text: _checkIn.format(context)),
+                    controller: TextEditingController(text: formState.checkIn.format(context)),
                     suffixIcon: const Icon(Icons.access_time_rounded),
                     onTap: () => _pickTime(true),
                   ),
@@ -149,7 +156,7 @@ class _AttendanceFormState extends ConsumerState<AttendanceForm> {
                   child: CustomTextField(
                     label: 'Check-Out Time',
                     readOnly: true,
-                    controller: TextEditingController(text: _checkOut.format(context)),
+                    controller: TextEditingController(text: formState.checkOut.format(context)),
                     suffixIcon: const Icon(Icons.access_time_filled_rounded),
                     onTap: () => _pickTime(false),
                   ),
@@ -168,7 +175,7 @@ class _AttendanceFormState extends ConsumerState<AttendanceForm> {
             const SizedBox(height: 24),
             CustomButton(
               text: 'Submit Regularization',
-              isLoading: _isSubmitting,
+              isLoading: formState.isSubmitting,
               onPressed: _submit,
             ),
           ],
