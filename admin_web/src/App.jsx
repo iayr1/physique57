@@ -225,7 +225,7 @@ export const App = () => {
         step: 'Approved by Administrator',
         status: 'Approved',
         approver: 'admin@gmail.com',
-        timestamp: serverTimestamp(),
+        timestamp: new Date().toISOString(),
       };
 
       const updatedHistory = [...(req.approvalHistory || []), approvalStep];
@@ -290,7 +290,7 @@ export const App = () => {
         status: 'Rejected',
         reason: rejectionReason.trim(),
         approver: 'admin@gmail.com',
-        timestamp: serverTimestamp(),
+        timestamp: new Date().toISOString(),
       };
 
       const updatedHistory = [...(req.approvalHistory || []), rejectionStep];
