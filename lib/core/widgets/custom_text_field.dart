@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../constants/app_colors.dart';
 
 class CustomTextField extends StatelessWidget {
   final String label;
@@ -34,35 +36,75 @@ class CustomTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white : AppColors.neoBorder;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+          style: GoogleFonts.outfit(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: isDark ? AppColors.textPrimaryDark : AppColors.neoBorder,
+            letterSpacing: 0.1,
           ),
         ),
         const SizedBox(height: 6),
-        TextFormField(
-          controller: controller,
-          initialValue: initialValue,
-          validator: validator,
-          readOnly: readOnly,
-          obscureText: obscureText,
-          onTap: onTap,
-          maxLines: maxLines,
-          keyboardType: keyboardType,
-          onChanged: onChanged,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontSize: 15,
+        Container(
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? Colors.white.withValues(alpha: 0.15) : AppColors.neoBorder,
+                offset: const Offset(3, 3),
+                blurRadius: 0,
+              ),
+            ],
+            borderRadius: BorderRadius.circular(14),
           ),
-          decoration: InputDecoration(
-            hintText: hint,
-            suffixIcon: suffixIcon,
-            prefixIcon: prefixIcon,
+          child: TextFormField(
+            controller: controller,
+            initialValue: initialValue,
+            validator: validator,
+            readOnly: readOnly,
+            obscureText: obscureText,
+            onTap: onTap,
+            maxLines: maxLines,
+            keyboardType: keyboardType,
+            onChanged: onChanged,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : AppColors.neoBorder,
+            ),
+            decoration: InputDecoration(
+              hintText: hint,
+              suffixIcon: suffixIcon,
+              prefixIcon: prefixIcon,
+              filled: true,
+              fillColor: isDark ? AppColors.surfaceDark : Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: borderColor, width: 2.5),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: borderColor, width: 2.5),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: isDark ? AppColors.neoYellow : AppColors.neoIndigo,
+                  width: 3,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: AppColors.statusRejected, width: 2.5),
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 16),

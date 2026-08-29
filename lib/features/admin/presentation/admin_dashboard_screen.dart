@@ -202,7 +202,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   child: Text(
                     'Change Password: $name',
                     style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -437,7 +436,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               children: [
                 const Icon(Icons.edit_note_rounded, color: AppColors.primary, size: 26),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Edit User: ${data['name'] ?? ''}', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text('Edit User: ${data['name'] ?? ''}', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16))),
               ],
             ),
             content: SingleChildScrollView(
@@ -460,6 +459,55 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     decoration: const InputDecoration(labelText: 'Designation', border: OutlineInputBorder()),
                   ),
                   const SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection('employees').snapshots(),
+                    builder: (context, snapshot) {
+                      final Map<String, String> managers = {
+                        'mayurchaudhari@gmail.com': 'Mayur Chaudhari (Default)',
+                      };
+                      if (snapshot.hasData) {
+                        for (var doc in snapshot.data!.docs) {
+                          final d = doc.data() as Map<String, dynamic>;
+                          final n = (d['name'] ?? '').toString().trim();
+                          final e = (d['email'] ?? '').toString().trim().toLowerCase();
+                          if (n.isNotEmpty && e.isNotEmpty && e != 'mayurchaudhari@gmail.com') {
+                            managers[e] = '$n ($e)';
+                          }
+                        }
+                      }
+                      final currentEmail = mgrEmailCtrl.text.trim().toLowerCase();
+                      final selectedEmail = managers.containsKey(currentEmail) ? currentEmail : 'mayurchaudhari@gmail.com';
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Assign Reporting Manager:', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
+                          const SizedBox(height: 6),
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedEmail,
+                            decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Icons.supervisor_account_rounded)),
+                            items: managers.entries.map((entry) {
+                              return DropdownMenuItem<String>(
+                                value: entry.key,
+                                child: Text(entry.value, style: const TextStyle(fontSize: 13)),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setModalState(() {
+                                  mgrEmailCtrl.text = val;
+                                  final nameClean = (managers[val] ?? 'Mayur Chaudhari').replaceAll(RegExp(r'\s*\([^)]*\)'), '');
+                                  mgrNameCtrl.text = nameClean;
+                                });
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      );
+                    },
+                  ),
                   TextField(
                     controller: mgrNameCtrl,
                     decoration: const InputDecoration(labelText: 'Reporting Manager Name', border: OutlineInputBorder()),
@@ -525,6 +573,27 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.neoYellow,
+                        foregroundColor: AppColors.neoBorder,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: const BorderSide(color: AppColors.neoBorder, width: 2),
+                        ),
+                      ),
+                      icon: const Icon(Icons.payments_rounded, color: AppColors.neoBorder, size: 18),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _manageEmployeePayslipsDialog(data);
+                      },
+                      label: Text('Manage 6-Month Payslips 💰', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13)),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -575,6 +644,186 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
   }
 
+  // Admin 6-Month Payslip Manager Dialog
+  Future<void> _manageEmployeePayslipsDialog(Map<String, dynamic> data) async {
+    final empEmail = (data['email'] ?? '').toString();
+    final empName = (data['name'] ?? 'Employee').toString();
+    final basePay = (data['baseSalary'] as num?)?.toDouble() ?? 65000.0;
+    final hra = (data['hraAmount'] as num?)?.toDouble() ?? (basePay * 0.40);
+    final allow = (data['allowanceAmount'] as num?)?.toDouble() ?? (basePay * 0.15);
+    final inc = (data['monthlyIncentive'] as num?)?.toDouble() ?? 5000.0;
+    final pf = (data['pfDeduction'] as num?)?.toDouble() ?? (basePay * 0.08);
+
+    final monthsList = List.generate(6, (i) {
+      final date = DateTime.now().subtract(Duration(days: 30 * i));
+      return '${DateFormat('MMMM').format(date)} ${date.year}';
+    });
+
+    String selectedMonthYear = monthsList.first;
+    final baseCtrl = TextEditingController(text: basePay.toStringAsFixed(0));
+    final hraCtrl = TextEditingController(text: hra.toStringAsFixed(0));
+    final allowCtrl = TextEditingController(text: allow.toStringAsFixed(0));
+    final incCtrl = TextEditingController(text: inc.toStringAsFixed(0));
+    final otCtrl = TextEditingController(text: '0');
+    final pfCtrl = TextEditingController(text: pf.toStringAsFixed(0));
+    final taxCtrl = TextEditingController(text: '0');
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final baseVal = double.tryParse(baseCtrl.text) ?? 0.0;
+          final hraVal = double.tryParse(hraCtrl.text) ?? 0.0;
+          final allowVal = double.tryParse(allowCtrl.text) ?? 0.0;
+          final incVal = double.tryParse(incCtrl.text) ?? 0.0;
+          final otVal = double.tryParse(otCtrl.text) ?? 0.0;
+          final pfVal = double.tryParse(pfCtrl.text) ?? 0.0;
+          final taxVal = double.tryParse(taxCtrl.text) ?? 0.0;
+
+          final grossVal = baseVal + hraVal + allowVal + incVal + otVal;
+          final netVal = grossVal - pfVal - taxVal;
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: Row(
+              children: [
+                const Icon(Icons.receipt_long_rounded, color: AppColors.primary, size: 26),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Payslip Entry: $empName', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16))),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Select Target Month (Last 6 Months):', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedMonthYear,
+                    decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+                    items: monthsList.map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 13)))).toList(),
+                    onChanged: (val) {
+                      if (val != null) setModalState(() => selectedMonthYear = val);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: baseCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Basic Salary (₹)', border: OutlineInputBorder()), onChanged: (_) => setModalState(() {}))),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: hraCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'HRA (₹)', border: OutlineInputBorder()), onChanged: (_) => setModalState(() {}))),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: allowCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Allowances (₹)', border: OutlineInputBorder()), onChanged: (_) => setModalState(() {}))),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: incCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Incentive/Bonus (₹)', border: OutlineInputBorder()), onChanged: (_) => setModalState(() {}))),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: otCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Overtime Pay (₹)', border: OutlineInputBorder()), onChanged: (_) => setModalState(() {}))),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: pfCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'PF Deduction (₹)', border: OutlineInputBorder()), onChanged: (_) => setModalState(() {}))),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(controller: taxCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'TDS / Income Tax (₹)', border: OutlineInputBorder()), onChanged: (_) => setModalState(() {})),
+                  const SizedBox(height: 14),
+
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Gross Earnings:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                            Text('₹${grossVal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Net Take-Home Pay:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('₹${netVal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.green)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  Navigator.pop(ctx);
+
+                  try {
+                    final parts = selectedMonthYear.split(' ');
+                    final mName = parts[0];
+                    final yVal = int.tryParse(parts[1]) ?? 2026;
+                    final payslipId = 'PAY-$yVal-$mName-$empEmail';
+
+                    final payslipData = {
+                      'id': payslipId,
+                      'employeeEmail': empEmail,
+                      'employeeName': empName,
+                      'department': data['department'] ?? 'Operations',
+                      'designation': data['designation'] ?? 'Staff Member',
+                      'month': mName,
+                      'year': yVal,
+                      'monthYearStr': selectedMonthYear,
+                      'baseSalary': baseVal,
+                      'hraAmount': hraVal,
+                      'allowanceAmount': allowVal,
+                      'monthlyIncentive': incVal,
+                      'overtimePay': otVal,
+                      'grossSalary': grossVal,
+                      'pfDeduction': pfVal,
+                      'taxDeduction': taxVal,
+                      'netTakeHomePay': netVal,
+                      'payStatus': 'Paid',
+                      'paymentDate': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+                      'transactionId': 'TXN-P57-${100000 + DateTime.now().millisecondsSinceEpoch % 899999}',
+                      'updatedAt': FieldValue.serverTimestamp(),
+                    };
+
+                    await FirebaseFirestore.instance.collection('employees').doc(empEmail).collection('payslips').doc(payslipId).set(payslipData, SetOptions(merge: true));
+                    await FirebaseFirestore.instance.collection('payslips').doc(payslipId).set(payslipData, SetOptions(merge: true));
+
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('✓ Payslip for $selectedMonthYear saved to Firebase!'), backgroundColor: AppColors.statusApproved),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Failed to save payslip: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                },
+                child: const Text('Save to Firebase', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   // Mark or edit manual attendance for an employee
   Future<void> _markManualAttendance(String email, String name, [Map<String, dynamic>? existingData]) async {
     final selectedAttendanceDate = ref.read(adminDashboardControllerProvider).selectedAttendanceDate;
@@ -611,7 +860,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   child: Text(
                     'Attendance: $name',
                     style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -814,8 +1062,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final name = _nameController.text.trim();
     final dept = _deptController.text.trim();
     final desig = _designationController.text.trim();
-    final mgrName = _managerNameController.text.trim();
-    final mgrEmail = _managerEmailController.text.trim();
+    final rawMgrName = _managerNameController.text.trim();
+    final rawMgrEmail = _managerEmailController.text.trim();
+    final mgrName = rawMgrName.isNotEmpty ? rawMgrName : 'Mayur Chaudhari';
+    final mgrEmail = rawMgrEmail.isNotEmpty ? rawMgrEmail : 'mayurchaudhari@gmail.com';
     final empId = 'EMP-${1000 + email.hashCode.abs() % 8000}';
 
     try {
@@ -1704,8 +1954,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 Text(
                   title,
                   style: GoogleFonts.plusJakartaSans(color: Colors.grey[600], fontSize: 11, fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -1852,23 +2100,67 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     controller: _designationController,
                     validator: (v) => (v == null || v.trim().isEmpty) ? 'Designation is required' : null,
                   ),
-                  CustomTextField(
-                    label: 'Reporting Manager Name',
-                    hint: 'e.g. Sarah Jenkins',
-                    controller: _managerNameController,
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Manager name is required' : null,
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection('employees').snapshots(),
+                    builder: (context, snapshot) {
+                      final Map<String, String> managers = {
+                        'mayurchaudhari@gmail.com': 'Mayur Chaudhari (Default)',
+                      };
+                      if (snapshot.hasData) {
+                        for (var doc in snapshot.data!.docs) {
+                          final d = doc.data() as Map<String, dynamic>;
+                          final n = (d['name'] ?? '').toString().trim();
+                          final e = (d['email'] ?? '').toString().trim().toLowerCase();
+                          if (n.isNotEmpty && e.isNotEmpty && e != 'mayurchaudhari@gmail.com') {
+                            managers[e] = '$n ($e)';
+                          }
+                        }
+                      }
+                      final currentEmail = _managerEmailController.text.trim().toLowerCase();
+                      final selectedEmail = managers.containsKey(currentEmail) ? currentEmail : 'mayurchaudhari@gmail.com';
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Select Reporting Manager:', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF0F172A))),
+                          const SizedBox(height: 6),
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedEmail,
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              prefixIcon: const Icon(Icons.supervisor_account_rounded, color: AppColors.primary),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                            items: managers.entries.map((entry) {
+                              return DropdownMenuItem<String>(
+                                value: entry.key,
+                                child: Text(entry.value, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600)),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _managerEmailController.text = val;
+                                  final nameClean = (managers[val] ?? 'Mayur Chaudhari').replaceAll(RegExp(r'\s*\([^)]*\)'), '');
+                                  _managerNameController.text = nameClean.replaceAll(' (Default)', '');
+                                });
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                      );
+                    },
                   ),
                   CustomTextField(
-                    label: 'Reporting Manager Email',
-                    hint: 'manager@company.com',
+                    label: 'Reporting Manager Name (Custom Override)',
+                    hint: 'Mayur Chaudhari',
+                    controller: _managerNameController,
+                  ),
+                  CustomTextField(
+                    label: 'Reporting Manager Email (Custom Override)',
+                    hint: 'mayurchaudhari@gmail.com',
                     controller: _managerEmailController,
-                    validator: (v) {
-                      final val = v?.trim() ?? '';
-                      if (val.isEmpty || !val.contains('@') || val.startsWith('@') || val.endsWith('@')) {
-                        return 'Provide a valid email (e.g. manager@company.com)';
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 12),
                   Container(
@@ -1984,7 +2276,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 child: Text(
                                   '$empName ($empEmail)',
                                   style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 15),
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               Container(
@@ -2804,6 +3095,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     due = DateFormat('yyyy-MM-dd').format((data['dueDate'] as Timestamp).toDate());
                   } else if (data['dueDate'] is DateTime) {
                     due = DateFormat('yyyy-MM-dd').format(data['dueDate'] as DateTime);
+                  } else {
+                    final parsed = DateTime.tryParse(data['dueDate'].toString());
+                    if (parsed != null) {
+                      due = DateFormat('yyyy-MM-dd').format(parsed);
+                    } else {
+                      due = data['dueDate'].toString();
+                    }
                   }
                 }
 
@@ -2927,6 +3225,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               icon: const Icon(Icons.person_add_alt_1_rounded, size: 18, color: Colors.white),
               label: const Text('+ Create User', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () => adminNotifier.setSelectedTab(1),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.event_note_rounded, size: 18),
+              label: const Text('+ Add Holiday', style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: _showAddHolidayDialog,
             ),
           ],
         ),
@@ -3073,7 +3377,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                           child: Text(
                                             name,
                                             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
-                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                         if (isAdmin) ...[
@@ -3600,6 +3903,86 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showAddHolidayDialog() {
+    final titleController = TextEditingController();
+    final descriptionController = TextEditingController();
+    DateTime selectedDate = DateTime.now().add(const Duration(days: 7));
+    String selectedType = 'Festival';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Add Corporate Holiday / Event', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Holiday Title', hintText: 'e.g. Diwali Festival'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(labelText: 'Description', hintText: 'e.g. Festival of Lights celebration'),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: selectedType,
+                decoration: const InputDecoration(labelText: 'Category / Type'),
+                items: ['Festival', 'Gazetted Holiday', 'National Holiday', 'Company Event']
+                    .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                    .toList(),
+                onChanged: (val) => setDialogState(() => selectedType = val!),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Text('Date: ${DateFormat('yyyy-MM-dd').format(selectedDate)}', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (picked != null) setDialogState(() => selectedDate = picked);
+                    },
+                    child: const Text('Pick Date'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+              onPressed: () async {
+                if (titleController.text.trim().isEmpty) return;
+                final messenger = ScaffoldMessenger.of(context);
+                final nav = Navigator.of(ctx);
+                await FirebaseFirestore.instance.collection('holidays').add({
+                  'title': titleController.text.trim(),
+                  'description': descriptionController.text.trim(),
+                  'type': selectedType,
+                  'date': Timestamp.fromDate(selectedDate),
+                  'createdAt': FieldValue.serverTimestamp(),
+                });
+                nav.pop();
+                messenger.showSnackBar(const SnackBar(content: Text('Holiday added & synced with app!')));
+              },
+              child: const Text('Save Holiday'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

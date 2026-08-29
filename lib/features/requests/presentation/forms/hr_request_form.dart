@@ -118,7 +118,7 @@ class _HRRequestFormState extends ConsumerState<HRRequestForm> {
             DropdownButtonFormField<String>(
               initialValue: hrState.category,
               isExpanded: true,
-              items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis))).toList(),
+              items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans()))).toList(),
               onChanged: (v) {
                 if (v != null) {
                   ref.read(hrFormControllerProvider.notifier).setCategory(v);

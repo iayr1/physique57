@@ -120,7 +120,7 @@ export const AuditLogsView = ({ auditLogs = [] }) => {
                     </td>
 
                     {/* Details */}
-                    <td className="py-4 px-6 text-slate-700 max-w-xs truncate">
+                    <td className="py-4 px-6 text-slate-700">
                       {log.details || 'Operational record logged.'}
                     </td>
                   </tr>

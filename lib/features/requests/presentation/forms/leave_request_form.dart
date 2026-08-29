@@ -237,7 +237,7 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
               items: _leaveTypes
                   .map((t) => DropdownMenuItem(
                         value: t,
-                        child: Text(t, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis),
+                        child: Text(t, style: GoogleFonts.plusJakartaSans()),
                       ))
                   .toList(),
               onChanged: (val) {
@@ -274,8 +274,6 @@ class _LeaveRequestFormState extends ConsumerState<LeaveRequestForm> {
                           fontWeight: FontWeight.w700,
                           color: remainingDays > 0 ? Colors.green[800] : Colors.red[800],
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],

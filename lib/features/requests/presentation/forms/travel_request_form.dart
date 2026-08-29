@@ -196,7 +196,7 @@ class _TravelRequestFormState extends ConsumerState<TravelRequestForm> {
             DropdownButtonFormField<String>(
               initialValue: formState.travelMode,
               isExpanded: true,
-              items: _modes.map((m) => DropdownMenuItem(value: m, child: Text(m, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis))).toList(),
+              items: _modes.map((m) => DropdownMenuItem(value: m, child: Text(m, style: GoogleFonts.plusJakartaSans()))).toList(),
               onChanged: (v) {
                 if (v != null) {
                   ref.read(travelFormControllerProvider.notifier).setTravelMode(v);

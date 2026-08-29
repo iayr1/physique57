@@ -14,32 +14,41 @@ class NotificationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncNotifications = ref.watch(notificationProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white : AppColors.neoBorder;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? AppColors.neoBgDark : AppColors.neoBgLight,
       appBar: AppBar(
         scrolledUnderElevation: 0,
-        backgroundColor: isDark ? AppColors.backgroundDark : const Color(0xFFF8FAFC),
+        backgroundColor: isDark ? AppColors.neoBgDark : AppColors.neoBgLight,
         elevation: 0,
         title: Text(
           'Notifications',
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 18),
+          style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 22, color: isDark ? Colors.white : AppColors.neoBorder),
         ),
         actions: [
-          TextButton.icon(
-            onPressed: () {
-              ref.read(notificationProvider.notifier).markAllAsRead();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('All notifications marked as read.'), duration: Duration(seconds: 2)),
-              );
-            },
-            icon: const Icon(Icons.done_all_rounded, size: 16, color: AppColors.primary),
-            label: Text(
-              'Mark All Read',
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-                color: AppColors.primary,
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: AppColors.neoYellow,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: borderColor, width: 2),
+            ),
+            child: TextButton.icon(
+              onPressed: () {
+                ref.read(notificationProvider.notifier).markAllAsRead();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('All notifications marked as read.'), duration: Duration(seconds: 2)),
+                );
+              },
+              icon: const Icon(Icons.done_all_rounded, size: 16, color: AppColors.neoBorder),
+              label: Text(
+                'Mark All Read',
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  color: AppColors.neoBorder,
+                ),
               ),
             ),
           ),
@@ -56,16 +65,16 @@ class NotificationsScreen extends ConsumerWidget {
                   const SizedBox(height: 14),
                   Text(
                     'No notifications right now',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? AppColors.textSecondaryDark : AppColors.neoBorder,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'You\'re all caught up with company alerts and requests.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    style: GoogleFonts.plusJakartaSans(fontSize: 13, color: Colors.grey[500], fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -73,51 +82,57 @@ class NotificationsScreen extends ConsumerWidget {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             itemCount: list.length,
             itemBuilder: (context, index) {
               final notif = list[index];
               final isAnn = notif.title.contains('📢') || notif.requestId.startsWith('ANN-');
               final isTask = notif.title.contains('📋') || notif.title.contains('Task') || notif.requestId.startsWith('TSK-');
 
-              Color iconColor = AppColors.primary;
+              Color iconBg = AppColors.neoCyan;
               IconData notifIcon = Icons.notifications_rounded;
               if (isAnn) {
-                iconColor = Colors.orange;
+                iconBg = AppColors.neoYellow;
                 notifIcon = Icons.campaign_rounded;
               } else if (isTask) {
-                iconColor = Colors.teal;
+                iconBg = AppColors.neoPurple;
                 notifIcon = Icons.task_alt_rounded;
               } else if (notif.title.contains('Approved')) {
-                iconColor = Colors.green;
+                iconBg = AppColors.neoGreen;
                 notifIcon = Icons.check_circle_outline_rounded;
               } else if (notif.title.contains('Rejected')) {
-                iconColor = Colors.red;
+                iconBg = AppColors.neoPink;
                 notifIcon = Icons.cancel_outlined;
               }
 
-              return Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                elevation: 0,
-                color: notif.isRead
-                    ? (isDark ? const Color(0xFF1E293B) : Colors.white)
-                    : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
-                shape: RoundedRectangleBorder(
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: notif.isRead
+                      ? (isDark ? AppColors.surfaceDark : Colors.white)
+                      : (isDark ? AppColors.surfaceDark : AppColors.neoYellow.withValues(alpha: 0.2)),
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: notif.isRead ? const Color(0xFFE2E8F0) : AppColors.primary.withValues(alpha: 0.4),
-                    width: notif.isRead ? 1 : 1.5,
-                  ),
+                  border: Border.all(color: borderColor, width: 2.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: borderColor,
+                      offset: const Offset(4, 4),
+                      blurRadius: 0,
+                    ),
+                  ],
                 ),
-                child: ListTile(
+                child: Material(
+                  color: Colors.transparent,
+                  child: ListTile(
                   contentPadding: const EdgeInsets.all(14),
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: 0.12),
+                      color: iconBg,
                       shape: BoxShape.circle,
+                      border: Border.all(color: borderColor, width: 2),
                     ),
-                    child: Icon(notifIcon, color: iconColor, size: 20),
+                    child: Icon(notifIcon, color: AppColors.neoBorder, size: 20),
                   ),
                   title: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -125,20 +140,24 @@ class NotificationsScreen extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           notif.title,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontWeight: notif.isRead ? FontWeight.w600 : FontWeight.bold,
-                            fontSize: 14,
-                            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                          style: GoogleFonts.outfit(
+                            fontWeight: notif.isRead ? FontWeight.w700 : FontWeight.w900,
+                            fontSize: 15,
+                            color: isDark ? AppColors.textPrimaryDark : AppColors.neoBorder,
                           ),
                         ),
                       ),
                       if (!notif.isRead)
                         Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: AppColors.primary,
-                            shape: BoxShape.circle,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.neoPink,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: borderColor, width: 1.5),
+                          ),
+                          child: Text(
+                            'NEW',
+                            style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.neoBorder),
                           ),
                         ),
                     ],
@@ -149,18 +168,19 @@ class NotificationsScreen extends ConsumerWidget {
                       const SizedBox(height: 6),
                       Text(
                         notif.message,
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
                           color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         DateFormatter.formatDateTime(notif.timestamp),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? AppColors.textSecondaryDark : Colors.grey[500],
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? AppColors.textSecondaryDark : Colors.grey[600],
                         ),
                       ),
                     ],
@@ -172,7 +192,8 @@ class NotificationsScreen extends ConsumerWidget {
                     }
                   },
                 ),
-              );
+              ),
+            );
             },
           );
         },

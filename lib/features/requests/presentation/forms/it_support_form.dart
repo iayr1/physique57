@@ -144,7 +144,7 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
             DropdownButtonFormField<String>(
               initialValue: itState.issueCategory,
               isExpanded: true,
-              items: _issueCategories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis))).toList(),
+              items: _issueCategories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans()))).toList(),
               onChanged: (v) {
                 if (v != null) {
                   ref.read(itSupportFormControllerProvider.notifier).setIssueCategory(v);
@@ -162,7 +162,7 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
             DropdownButtonFormField<String>(
               initialValue: itState.deviceType,
               isExpanded: true,
-              items: _deviceTypes.map((d) => DropdownMenuItem(value: d, child: Text(d, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis))).toList(),
+              items: _deviceTypes.map((d) => DropdownMenuItem(value: d, child: Text(d, style: GoogleFonts.plusJakartaSans()))).toList(),
               onChanged: (v) {
                 if (v != null) {
                   ref.read(itSupportFormControllerProvider.notifier).setDeviceType(v);
@@ -180,7 +180,7 @@ class _ITSupportFormState extends ConsumerState<ITSupportForm> {
             DropdownButtonFormField<String>(
               initialValue: itState.priority,
               isExpanded: true,
-              items: _priorities.map((p) => DropdownMenuItem(value: p, child: Text(p, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis))).toList(),
+              items: _priorities.map((p) => DropdownMenuItem(value: p, child: Text(p, style: GoogleFonts.plusJakartaSans()))).toList(),
               onChanged: (v) {
                 if (v != null) {
                   ref.read(itSupportFormControllerProvider.notifier).setPriority(v);

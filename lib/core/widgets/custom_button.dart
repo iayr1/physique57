@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_colors.dart';
 
-class CustomButton extends StatelessWidget {
+class CustomButton extends StatefulWidget {
   final String text;
   final VoidCallback? onPressed;
   final bool isLoading;
@@ -22,86 +23,98 @@ class CustomButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    if (isOutlined) {
-      return OutlinedButton(
-        onPressed: isLoading ? null : onPressed,
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 50),
-          side: BorderSide(
-            color: backgroundColor ?? AppColors.primary,
-            width: 1.5,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: isLoading
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 20, color: textColor ?? AppColors.primary),
-                    const SizedBox(width: 8),
-                  ],
-                  Flexible(
-                    child: Text(
-                      text,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: textColor ?? AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-      );
-    }
+  State<CustomButton> createState() => _CustomButtonState();
+}
 
-    return ElevatedButton(
-      onPressed: isLoading ? null : onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: backgroundColor ?? AppColors.primary,
-        minimumSize: const Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+class _CustomButtonState extends State<CustomButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white : AppColors.neoBorder;
+    final shadowColor = isDark ? Colors.white.withValues(alpha: 0.8) : AppColors.neoBorder;
+
+    final defaultBg = widget.isOutlined
+        ? (isDark ? AppColors.surfaceDark : Colors.white)
+        : AppColors.neoYellow;
+    final bg = widget.backgroundColor ?? defaultBg;
+
+    final defaultFg = widget.isOutlined
+        ? (isDark ? Colors.white : AppColors.neoBorder)
+        : (widget.backgroundColor != null ? Colors.white : AppColors.neoBorder);
+    final fg = widget.textColor ?? defaultFg;
+
+    return GestureDetector(
+      onTapDown: widget.onPressed != null && !widget.isLoading
+          ? (_) => setState(() => _isPressed = true)
+          : null,
+      onTapUp: widget.onPressed != null && !widget.isLoading
+          ? (_) => setState(() => _isPressed = false)
+          : null,
+      onTapCancel: widget.onPressed != null && !widget.isLoading
+          ? () => setState(() => _isPressed = false)
+          : null,
+      onTap: widget.isLoading ? null : widget.onPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        transform: Matrix4.translationValues(
+          _isPressed ? 3 : 0,
+          _isPressed ? 3 : 0,
+          0,
         ),
-        elevation: 0,
-      ),
-      child: isLoading
-          ? const SizedBox(
-              height: 22,
-              width: 22,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            )
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 20, color: textColor ?? Colors.white),
+        constraints: const BoxConstraints(minHeight: 52),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor, width: 2.5),
+          boxShadow: [
+            BoxShadow(
+              color: shadowColor,
+              offset: _isPressed ? const Offset(1, 1) : const Offset(4, 4),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              if (widget.isLoading)
+                SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(fg),
+                  ),
+                )
+              else ...[
+                if (widget.icon != null) ...[
+                  Icon(widget.icon, size: 20, color: fg),
                   const SizedBox(width: 8),
                 ],
                 Flexible(
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: textColor ?? Colors.white,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      widget.text,
+                      style: GoogleFonts.outfit(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: fg,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ),
                 ),
               ],
-            ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

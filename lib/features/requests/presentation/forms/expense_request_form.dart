@@ -159,7 +159,7 @@ class _ExpenseRequestFormState extends ConsumerState<ExpenseRequestForm> {
               initialValue: expenseState.category,
               isExpanded: true,
               items: _categories
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans(), overflow: TextOverflow.ellipsis)))
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c, style: GoogleFonts.plusJakartaSans())))
                   .toList(),
               onChanged: (v) {
                 if (v != null) {

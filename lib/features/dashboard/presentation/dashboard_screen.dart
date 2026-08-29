@@ -4,15 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/custom_button.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/attendance_provider.dart';
 import '../../../providers/task_provider.dart';
 import '../../../providers/request_provider.dart';
 import '../../../providers/notification_provider.dart';
 import '../../../providers/announcement_provider.dart';
+import '../../../providers/holiday_provider.dart';
 import '../../announcements/domain/announcement_model.dart';
-import '../domain/holiday_model.dart';
+import '../../authentication/domain/employee_model.dart';
+import '../domain/payslip_model.dart';
+import '../../../core/utils/payslip_pdf_generator.dart';
 import 'controllers/dashboard_controller.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -22,23 +27,64 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour >= 5 && hour < 12) return 'Good Morning 🌅';
-    if (hour >= 12 && hour < 17) return 'Good Afternoon ☀️';
-    if (hour >= 17 && hour < 22) return 'Good Evening 🌤️';
-    return 'Good Night 🌙';
-  }
+class NeoGreetingInfo {
+  final String greetingText;
+  final String emoji;
+  final String subtitle;
+  final Color themeColor;
+  final Color pillColor;
+  final IconData icon;
 
-  int _getBaseSalary(dynamic user) {
-    if (user.baseSalary != null && user.baseSalary > 0) {
-      return user.baseSalary.round();
+  const NeoGreetingInfo({
+    required this.greetingText,
+    required this.emoji,
+    required this.subtitle,
+    required this.themeColor,
+    required this.pillColor,
+    required this.icon,
+  });
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  NeoGreetingInfo _getNeoGreetingInfo() {
+    final hour = DateTime.now().hour;
+    if (hour >= 5 && hour < 12) {
+      return const NeoGreetingInfo(
+        greetingText: 'Good Morning',
+        emoji: '🌅',
+        subtitle: 'Ready to crush today\'s goals at Physique 57?',
+        themeColor: AppColors.neoYellow,
+        pillColor: AppColors.neoOrange,
+        icon: Icons.wb_sunny_rounded,
+      );
+    } else if (hour >= 12 && hour < 17) {
+      return const NeoGreetingInfo(
+        greetingText: 'Good Afternoon',
+        emoji: '☀️',
+        subtitle: 'Keep up the high energy & strong momentum!',
+        themeColor: AppColors.neoCyan,
+        pillColor: AppColors.neoGreen,
+        icon: Icons.light_mode_rounded,
+      );
+    } else if (hour >= 17 && hour < 22) {
+      return const NeoGreetingInfo(
+        greetingText: 'Good Evening',
+        emoji: '🌤️',
+        subtitle: 'Wrapping up a productive, high-impact day!',
+        themeColor: AppColors.neoOrange,
+        pillColor: AppColors.neoPink,
+        icon: Icons.wb_twilight_rounded,
+      );
+    } else {
+      return const NeoGreetingInfo(
+        greetingText: 'Good Night',
+        emoji: '🌙',
+        subtitle: 'Time to rest, unwind, and recharge for tomorrow!',
+        themeColor: AppColors.neoPurple,
+        pillColor: AppColors.neoIndigo,
+        icon: Icons.nights_stay_rounded,
+      );
     }
-    if (user.isAdmin) {
-      return 125000;
-    }
-    return 65000;
   }
 
   @override
@@ -50,8 +96,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final requestsState = ref.watch(requestsProvider);
     final unreadNotifs = ref.watch(unreadNotificationCountProvider);
     final announcementsState = ref.watch(announcementsStreamProvider);
-    final upcomingHolidays = CorporateHoliday.getUpcomingHolidays();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white : AppColors.neoBorder;
+    final greetingInfo = _getNeoGreetingInfo();
 
     if (user == null) {
       return const Scaffold(
@@ -59,60 +106,69 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
     }
 
-    final annualRemaining = user.getRemainingLeave('Annual / Paid Leave');
-    final annualTotal = user.getTotalLeave('Annual / Paid Leave');
-    final casualRemaining = user.getRemainingLeave('Casual Leave');
-    final casualTotal = user.getTotalLeave('Casual Leave');
-    final sickRemaining = user.getRemainingLeave('Sick Leave');
-    final sickTotal = user.getTotalLeave('Sick Leave');
+    final Map<String, dynamic> balancesMap = user.leaveBalances.isNotEmpty
+        ? user.leaveBalances
+        : EmployeeModel.defaultLeaveBalances();
 
-    final totalLeavesAllotted = annualTotal + casualTotal + sickTotal;
-    final totalLeavesRemaining = annualRemaining + casualRemaining + sickRemaining;
-    final totalLeavesUsed = totalLeavesAllotted - totalLeavesRemaining;
-    final totalUtilizationPct = totalLeavesAllotted > 0
-        ? (totalLeavesUsed / totalLeavesAllotted).clamp(0.0, 1.0)
-        : 0.0;
+    int totalLeavesAllotted = 0;
+    int totalLeavesUsed = 0;
+    int totalLeavesRemaining = 0;
+    bool hasLowLeave = false;
 
-    final hasLowLeave = sickRemaining <= 1 || casualRemaining <= 1 || annualRemaining <= 2;
+    balancesMap.forEach((key, val) {
+      if (val is Map) {
+        final tot = (val['total'] as num?)?.toInt() ?? 0;
+        final rem = (val['remaining'] as num?)?.toInt() ?? 0;
+        final used = (val['used'] as num?)?.toInt() ?? (tot - rem);
 
-    final baseSalary = _getBaseSalary(user);
-    final hra = (baseSalary * 0.4).round();
-    final allowances = (baseSalary * 0.15).round();
-    final pfDeduction = (baseSalary * 0.08).round();
-    final gross = baseSalary + hra + allowances;
-    final netTakeHome = gross - pfDeduction;
-    final formattedNetPay = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(netTakeHome);
+        totalLeavesAllotted += tot;
+        totalLeavesRemaining += rem;
+        totalLeavesUsed += used;
+
+        if (rem <= 2 && tot > 0) {
+          hasLowLeave = true;
+        }
+      }
+    });
+
+    final formattedNetPay = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(user.netTakeHomePay.round());
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? AppColors.neoBgDark : AppColors.neoBgLight,
       appBar: AppBar(
         scrolledUnderElevation: 0,
-        backgroundColor: isDark ? AppColors.backgroundDark : const Color(0xFFF8FAFC),
+        backgroundColor: isDark ? AppColors.neoBgDark : AppColors.neoBgLight,
         elevation: 0,
         title: Row(
           children: [
             Stack(
               children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                  child: (user.photoUrl.isNotEmpty)
-                      ? ClipOval(
-                          child: Image.network(
-                            user.photoUrl,
-                            width: 44,
-                            height: 44,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Text(
-                              user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-                              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 18),
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: borderColor, width: 2),
+                  ),
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AppColors.neoYellow,
+                    child: (user.photoUrl.isNotEmpty)
+                        ? ClipOval(
+                            child: Image.network(
+                              user.photoUrl,
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Text(
+                                user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                                style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: AppColors.neoBorder, fontSize: 18),
+                              ),
                             ),
+                          )
+                        : Text(
+                            user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: AppColors.neoBorder, fontSize: 18),
                           ),
-                        )
-                      : Text(
-                          user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-                          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 18),
-                        ),
+                  ),
                 ),
                 Positioned(
                   bottom: 0,
@@ -121,40 +177,55 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: Colors.green,
+                      color: AppColors.neoGreen,
                       shape: BoxShape.circle,
-                      border: Border.all(color: isDark ? AppColors.backgroundDark : Colors.white, width: 2),
+                      border: Border.all(color: borderColor, width: 2),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    _getGreeting(),
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: greetingInfo.pillColor,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: borderColor, width: 1.5),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(greetingInfo.icon, size: 11, color: AppColors.neoBorder),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${greetingInfo.greetingText} ${greetingInfo.emoji}',
+                            style: GoogleFonts.outfit(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.neoBorder,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     user.name,
                     style: GoogleFonts.outfit(
                       fontSize: 17,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w900,
                       letterSpacing: -0.3,
-                      color: isDark ? Colors.white : AppColors.textPrimaryLight,
+                      color: isDark ? Colors.white : AppColors.neoBorder,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -162,45 +233,72 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ],
         ),
         actions: [
-          // Notification Bell with reactive glowing badge
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 24),
-                tooltip: 'Notifications',
-                onPressed: () => context.push('/notifications'),
-              ),
-              if (unreadNotifs > 0)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: AppColors.statusRejected,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(color: AppColors.statusRejected.withValues(alpha: 0.5), blurRadius: 6, spreadRadius: 1),
-                      ],
-                    ),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: Text(
-                      unreadNotifs > 9 ? '9+' : '$unreadNotifs',
-                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
+          // Notification Bell with Neo-Brutalist badge
+          Container(
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(
+              color: AppColors.neoYellow,
+              shape: BoxShape.circle,
+              border: Border.all(color: borderColor, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: borderColor,
+                  offset: const Offset(2, 2),
+                  blurRadius: 0,
+                ),
+              ],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined, color: AppColors.neoBorder, size: 22),
+                  tooltip: 'Notifications',
+                  onPressed: () => context.push('/notifications'),
+                ),
+                if (unreadNotifs > 0)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.neoPink,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: borderColor, width: 1.5),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Text(
+                        unreadNotifs > 9 ? '9+' : '$unreadNotifs',
+                        style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 9, fontWeight: FontWeight.w900),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           if (user.isAdmin)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: IconButton(
-                icon: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.primary),
-                tooltip: 'Open Admin Portal',
-                onPressed: () => context.push('/admin'),
+              padding: const EdgeInsets.only(right: 12),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.neoPurple,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: borderColor, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: borderColor,
+                      offset: const Offset(2, 2),
+                      blurRadius: 0,
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.neoBorder, size: 22),
+                  tooltip: 'Open Admin Portal',
+                  onPressed: () => context.push('/admin'),
+                ),
               ),
             ),
         ],
@@ -215,143 +313,215 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           children: [
-            // 1. Dynamic Hero Card with Designation & Date
+            // 1. Ultra Eye-Catching Neo-Brutalist Greetings Hero Card
             Container(
-              padding: const EdgeInsets.all(20),
-              margin: const EdgeInsets.only(bottom: 16),
+              margin: const EdgeInsets.only(bottom: 18),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF1E1B4B), Color(0xFF312E81), Color(0xFF4338CA)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(24),
+                color: isDark ? AppColors.surfaceDark : greetingInfo.themeColor,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: borderColor, width: 3),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF312E81).withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
+                    color: borderColor,
+                    offset: const Offset(5, 5),
+                    blurRadius: 0,
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Flexible(
-                        flex: 5,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.calendar_today_rounded, color: Colors.white, size: 12),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  DateFormat('EEE, MMM d, yyyy').format(DateTime.now()),
-                                  style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(19),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Image.asset(
+                        'assets/images/dashboard_banner.jpg',
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.65),
+                              Colors.black.withValues(alpha: 0.88),
                             ],
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        flex: 4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            user.department.isNotEmpty ? user.department : 'Physique 57',
-                            style: GoogleFonts.outfit(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    user.designation.isNotEmpty ? user.designation : 'Staff Member',
-                    style: GoogleFonts.outfit(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Manager: ${user.reportingManagerName.isNotEmpty ? user.reportingManagerName : 'Management'}',
-                          style: GoogleFonts.plusJakartaSans(color: Colors.grey[300], fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Row(
+                    Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.local_fire_department_rounded, color: Colors.amberAccent, size: 16),
-                          const SizedBox(width: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.neoYellow,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: Colors.white, width: 2),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Colors.white,
+                                        offset: Offset(1.5, 1.5),
+                                        blurRadius: 0,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.workspace_premium_rounded, color: AppColors.neoBorder, size: 14),
+                                      const SizedBox(width: 5),
+                                      Flexible(
+                                        child: Text(
+                                          user.department.isNotEmpty ? user.department : 'Operations',
+                                          style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 11.5, fontWeight: FontWeight.w900),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.neoCyan,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.calendar_today_rounded, color: AppColors.neoBorder, size: 11),
+                                      const SizedBox(width: 5),
+                                      Flexible(
+                                        child: Text(
+                                          DateFormat('EEE, MMM d').format(DateTime.now()),
+                                          style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 11, fontWeight: FontWeight.w900),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Welcome Back, ${user.name.split(' ').first}! 👋',
+                              style: GoogleFonts.outfit(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
                           Text(
-                            '$streak-Day Streak',
-                            style: GoogleFonts.outfit(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                            greetingInfo.subtitle,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: AppColors.neoYellow,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${user.designation.isNotEmpty ? user.designation : 'Team Specialist'} • Manager: ${user.reportingManagerName.isNotEmpty ? user.reportingManagerName : 'Mayur Chaudhari'}',
+                                  style: GoogleFonts.plusJakartaSans(color: Colors.grey[300], fontSize: 11.5, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppColors.neoOrange,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.white, width: 1.5),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.local_fire_department_rounded, color: AppColors.neoBorder, size: 14),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$streak-Day Streak',
+                                      style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 10.5, fontWeight: FontWeight.w900),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05, end: 0),
 
-            // 2. Organization Broadcast Announcements Notice Board
+            // 2. Organization Broadcast Announcements Notice Board (Neo-Brutalist)
             announcementsState.when(
               data: (announcements) {
                 if (announcements.isEmpty) return const SizedBox.shrink();
                 final latest = announcements.first;
-                Color pColor = const Color(0xFF2563EB);
+                Color pBg = AppColors.neoYellow;
                 IconData pIcon = Icons.campaign_rounded;
                 if (latest.priority == 'Urgent') {
-                  pColor = const Color(0xFFDC2626);
+                  pBg = AppColors.neoPink;
                   pIcon = Icons.warning_amber_rounded;
                 } else if (latest.priority == 'Important') {
-                  pColor = const Color(0xFFEA580C);
+                  pBg = AppColors.neoOrange;
                   pIcon = Icons.error_outline_rounded;
                 }
 
                 return GestureDetector(
                   onTap: () => _showAnnouncementDialog(context, latest),
                   child: Container(
-                    margin: const EdgeInsets.only(bottom: 16),
+                    margin: const EdgeInsets.only(bottom: 18),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: pColor.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: pColor.withValues(alpha: 0.3)),
+                      color: isDark ? AppColors.surfaceDark : pBg,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: borderColor, width: 2.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: borderColor,
+                          offset: const Offset(4, 4),
+                          blurRadius: 0,
+                        ),
+                      ],
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
                           padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: pColor.withValues(alpha: 0.15), shape: BoxShape.circle),
-                          child: Icon(pIcon, color: pColor, size: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: borderColor, width: 2),
+                          ),
+                          child: Icon(pIcon, color: AppColors.neoBorder, size: 20),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -364,17 +534,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   Expanded(
                                     child: Text(
                                       latest.title,
-                                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: pColor),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 15, color: isDark ? Colors.white : AppColors.neoBorder),
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(color: pColor, borderRadius: BorderRadius.circular(6)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.neoBorder,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
                                     child: Text(
                                       latest.priority,
-                                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900),
                                     ),
                                   ),
                                 ],
@@ -382,9 +553,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               const SizedBox(height: 4),
                               Text(
                                 latest.message,
-                                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[700]),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? AppColors.textSecondaryDark : AppColors.neoBorder,
+                                ),
                               ),
                             ],
                           ),
@@ -398,7 +571,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               error: (_, __) => const SizedBox.shrink(),
             ),
 
-            // 3. Dynamic Shift Progress Tracker & Overtime Engine with Geofence Status
+            // 3. Dynamic Shift Progress Tracker & Overtime Engine (Neo-Brutalist Card)
             todayAttendance.when(
               data: (attendance) {
                 final isCheckedIn = attendance?.checkInTime != null;
@@ -410,20 +583,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   final endTime = attendance?.checkOutTime ?? DateTime.now();
                   elapsedMinutes = endTime.difference(attendance!.checkInTime!).inMinutes;
                 }
-                final progress = (elapsedMinutes / 480).clamp(0.0, 1.0); // 8 hours = 480 mins
+                final progress = (elapsedMinutes / 480).clamp(0.0, 1.0);
                 final isOvertime = elapsedMinutes > 480;
                 final overtimeMins = isOvertime ? (elapsedMinutes - 480) : 0;
 
                 final studioName = user.department.isNotEmpty ? '${user.department} Studio' : 'Flagship Studio';
 
-                return Card(
-                  elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(22),
-                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.surfaceDark : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: borderColor, width: 2.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: borderColor,
+                        offset: const Offset(4, 4),
+                        blurRadius: 0,
+                      ),
+                    ],
                   ),
-                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -432,65 +611,77 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: (isCheckedIn ? Colors.green : AppColors.primary).withValues(alpha: 0.1),
-                                    shape: BoxShape.circle,
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(7),
+                                    decoration: BoxDecoration(
+                                      color: isCheckedIn ? AppColors.neoGreen : AppColors.neoCyan,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: borderColor, width: 2),
+                                    ),
+                                    child: const Icon(
+                                      Icons.access_time_filled_rounded,
+                                      color: AppColors.neoBorder,
+                                      size: 18,
+                                    ),
                                   ),
-                                  child: Icon(
-                                    Icons.access_time_filled_rounded,
-                                    color: isCheckedIn ? Colors.green : AppColors.primary,
-                                    size: 20,
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        'Daily Work Clock',
+                                        style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 16, color: isDark ? Colors.white : AppColors.neoBorder),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'Daily Work Clock',
-                                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
+                            const SizedBox(width: 6),
                             if (isCheckedIn)
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: (isLate ? Colors.orange : Colors.green).withValues(alpha: 0.1),
+                                  color: isLate ? AppColors.neoOrange : AppColors.neoGreen,
                                   borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: borderColor, width: 1.5),
                                 ),
                                 child: Text(
                                   isLate ? 'Late Arrival' : 'On Time',
                                   style: GoogleFonts.outfit(
-                                    color: isLate ? Colors.orange : Colors.green,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.neoBorder,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w900,
                                   ),
                                 ),
                               ),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
 
                         // Geofence & Location Verification Pill
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
+                            color: isDark ? AppColors.neoBgDark : AppColors.neoYellow.withValues(alpha: 0.25),
                             borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: borderColor, width: 1.5),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.location_on_rounded, color: Colors.blueAccent, size: 14),
+                              const Icon(Icons.location_on_rounded, color: AppColors.neoIndigo, size: 16),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   '$studioName • Geofence Verified',
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF334155)),
+                                  style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700, color: isDark ? Colors.white : AppColors.neoBorder),
                                 ),
                               ),
-                              const Icon(Icons.verified_rounded, color: Colors.green, size: 14),
+                              const Icon(Icons.verified_rounded, color: AppColors.statusApproved, size: 16),
                             ],
                           ),
                         ),
@@ -500,19 +691,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.08),
+                              color: AppColors.neoGreen,
                               borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: borderColor, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: borderColor,
+                                  offset: const Offset(2, 2),
+                                  blurRadius: 0,
+                                ),
+                              ],
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.check_circle_rounded, color: Colors.green, size: 22),
+                                const Icon(Icons.check_circle_rounded, color: AppColors.neoBorder, size: 24),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('Shift Completed Today', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.green[800])),
-                                      Text('Total Logged: ${attendance?.formattedDuration ?? '8h 00m'}', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[700])),
+                                      Text('Shift Completed Today', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.neoBorder)),
+                                      Text('Total Logged: ${attendance?.formattedDuration ?? '8h 00m'}', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.neoBorder)),
                                     ],
                                   ),
                                 ),
@@ -525,59 +724,58 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             children: [
                               Text(
                                 'Check In: ${DateFormat('hh:mm a').format(attendance!.checkInTime!)}',
-                                style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
+                                style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: isDark ? Colors.white : AppColors.neoBorder),
                               ),
                               Text(
                                 '${(progress * 100).toInt()}% of 8h Shift',
-                                style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
+                                style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: isDark ? AppColors.neoYellow : AppColors.neoIndigo),
                               ),
                             ],
                           ),
                           const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: LinearProgressIndicator(
-                              value: progress,
-                              minHeight: 8,
-                              backgroundColor: const Color(0xFFE2E8F0),
-                              valueColor: AlwaysStoppedAnimation<Color>(isOvertime ? Colors.orange : AppColors.primary),
+                          Container(
+                            height: 12,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: borderColor, width: 2),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: LinearProgressIndicator(
+                                value: progress,
+                                minHeight: 12,
+                                backgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                valueColor: AlwaysStoppedAnimation<Color>(isOvertime ? AppColors.neoOrange : AppColors.neoYellow),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 8),
                           if (isOvertime)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                              child: Text('⏱️ Overtime logged: +${overtimeMins ~/ 60}h ${overtimeMins % 60}m', style: GoogleFonts.outfit(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold)),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(color: AppColors.neoOrange, borderRadius: BorderRadius.circular(8), border: Border.all(color: borderColor, width: 1.5)),
+                              child: Text('⏱️ Overtime logged: +${overtimeMins ~/ 60}h ${overtimeMins % 60}m', style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 11.5, fontWeight: FontWeight.w900)),
                             ),
                           const SizedBox(height: 14),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.statusRejected,
-                              minimumSize: const Size(double.infinity, 46),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 0,
-                            ),
+                          CustomButton(
+                            text: 'Clock Out Shift',
+                            backgroundColor: AppColors.statusRejected,
+                            textColor: Colors.white,
+                            icon: Icons.logout_rounded,
                             onPressed: () => ref.read(todayAttendanceProvider.notifier).checkOut(),
-                            icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 18),
-                            label: Text('Clock Out Shift', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                           ),
                         ] else ...[
                           Text(
                             'You have not checked in yet today. Clock in to automatically track shift duration.',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600]),
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w600, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
                           ),
                           const SizedBox(height: 14),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              minimumSize: const Size(double.infinity, 46),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 0,
-                            ),
+                          CustomButton(
+                            text: 'Clock In Now',
+                            backgroundColor: AppColors.neoYellow,
+                            textColor: AppColors.neoBorder,
+                            icon: Icons.login_rounded,
                             onPressed: () => ref.read(todayAttendanceProvider.notifier).checkIn(),
-                            icon: const Icon(Icons.login_rounded, color: Colors.white, size: 18),
-                            label: Text('Clock In Now', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                           ),
                         ],
                       ],
@@ -589,124 +787,149 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               error: (_, __) => const SizedBox.shrink(),
             ),
 
-            // 4. ⚡ Quick Action Smart Hub
+            // 4. ⚡ Quick Action Smart Hub (Neo-Brutalist Pop Cards)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Quick Actions',
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17),
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 18, color: isDark ? Colors.white : AppColors.neoBorder),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Row(
                   children: [
-                    _buildQuickActionBtn(context, 'Apply Leave', Icons.beach_access_rounded, const Color(0xFF3B82F6), '/forms/leave'),
-                    const SizedBox(width: 10),
-                    _buildQuickActionBtn(context, 'Expense', Icons.receipt_long_rounded, const Color(0xFF10B981), '/forms/expense'),
-                    const SizedBox(width: 10),
-                    _buildQuickActionBtn(context, 'IT Support', Icons.computer_rounded, const Color(0xFF8B5CF6), '/forms/it'),
-                    const SizedBox(width: 10),
-                    _buildQuickActionBtn(context, 'WFH', Icons.home_work_rounded, const Color(0xFFF59E0B), '/forms/wfh'),
+                    _buildQuickActionBtn(context, 'Apply Leave', Icons.beach_access_rounded, AppColors.neoCyan, '/forms/leave', borderColor),
+                    const SizedBox(width: 8),
+                    _buildQuickActionBtn(context, 'Expense', Icons.receipt_long_rounded, AppColors.neoGreen, '/forms/expense', borderColor),
+                    const SizedBox(width: 8),
+                    _buildQuickActionBtn(context, 'IT Support', Icons.computer_rounded, AppColors.neoPurple, '/forms/it', borderColor),
+                    const SizedBox(width: 8),
+                    _buildQuickActionBtn(context, 'WFH', Icons.home_work_rounded, AppColors.neoYellow, '/forms/wfh', borderColor),
                   ],
                 ),
               ],
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 22),
 
-            // 5. 📅 Upcoming Corporate Holidays Feed
-            if (upcomingHolidays.isNotEmpty) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Upcoming Holidays & Events',
-                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17),
-                  ),
-                  InkWell(
-                    onTap: () => context.push('/forms/leave'),
-                    child: Text(
-                      'Plan Leave →',
-                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
+            // 5. 📅 Upcoming Corporate Holidays Feed (Dynamic Stream from Firestore)
+            ref.watch(holidaysStreamProvider).when(
+              data: (holidaysList) {
+                if (holidaysList.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Upcoming Holidays & Events',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 18, color: isDark ? Colors.white : AppColors.neoBorder),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: () => context.push('/forms/leave'),
+                          child: Text(
+                            'Plan Leave →',
+                            style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: isDark ? AppColors.neoYellow : AppColors.neoIndigo),
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 105,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: holidaysList.length,
+                        itemBuilder: (context, index) {
+                          final hol = holidaysList[index];
+                          return Container(
+                            width: 220,
+                            margin: const EdgeInsets.only(right: 12),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppColors.surfaceDark : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: borderColor, width: 2.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: borderColor,
+                                  offset: const Offset(3, 3),
+                                  blurRadius: 0,
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        hol.title,
+                                        style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14, color: isDark ? Colors.white : AppColors.neoBorder),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.neoYellow,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: borderColor, width: 1.5),
+                                      ),
+                                      child: Text(
+                                        hol.countdownText,
+                                        style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 10, fontWeight: FontWeight.w900),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      DateFormat('MMM d, yyyy').format(hol.date),
+                                      style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                                    ),
+                                    Text(
+                                      hol.type,
+                                      style: GoogleFonts.outfit(fontSize: 10, color: isDark ? Colors.white70 : AppColors.neoBorder, fontWeight: FontWeight.w800),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                  ],
+                );
+              },
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+
+            // 6. Smart Leave Balance Health Cards (Neo-Brutalist)
+            Container(
+              margin: const EdgeInsets.only(bottom: 18),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: borderColor, width: 2.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: borderColor,
+                    offset: const Offset(4, 4),
+                    blurRadius: 0,
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 100,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: upcomingHolidays.length,
-                  itemBuilder: (context, index) {
-                    final hol = upcomingHolidays[index];
-                    return Container(
-                      width: 220,
-                      margin: const EdgeInsets.only(right: 12),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  hol.title,
-                                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  hol.countdownText,
-                                  style: const TextStyle(color: Colors.blue, fontSize: 10, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                DateFormat('MMM d, yyyy').format(hol.date),
-                                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                              ),
-                              Text(
-                                hol.type,
-                                style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 18),
-            ],
-
-            // 6. Smart Leave Balance Health Cards & Combined Ring
-            Card(
-              elevation: 0,
-              margin: const EdgeInsets.only(bottom: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(22),
-                side: const BorderSide(color: Color(0xFFE2E8F0)),
-              ),
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -718,20 +941,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         Expanded(
                           child: Text(
                             'Leave Quota & Health',
-                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16),
-                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 17, color: isDark ? Colors.white : AppColors.neoBorder),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.purple.withValues(alpha: 0.08),
+                            color: AppColors.neoPurple,
                             borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: borderColor, width: 1.5),
                           ),
                           child: Text(
-                            '${(totalUtilizationPct * 100).toInt()}% Used ($totalLeavesUsed/$totalLeavesAllotted)',
-                            style: GoogleFonts.outfit(color: Colors.purple, fontSize: 11, fontWeight: FontWeight.bold),
+                            '$totalLeavesRemaining Days Left ($totalLeavesUsed/$totalLeavesAllotted)',
+                            style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 11, fontWeight: FontWeight.w900),
                           ),
                         ),
                       ],
@@ -741,18 +964,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.amber.withValues(alpha: 0.1),
+                          color: AppColors.neoOrange,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                          border: Border.all(color: borderColor, width: 1.5),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 14),
+                            const Icon(Icons.info_outline_rounded, color: AppColors.neoBorder, size: 16),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 'Quota Alert: Low remaining days in one or more categories.',
-                                style: GoogleFonts.plusJakartaSans(color: const Color(0xFF92400E), fontSize: 11, fontWeight: FontWeight.w600),
+                                style: GoogleFonts.plusJakartaSans(color: AppColors.neoBorder, fontSize: 11, fontWeight: FontWeight.w700),
                               ),
                             ),
                           ],
@@ -760,13 +983,223 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                     ],
                     const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: balancesMap.entries.map((entry) {
+                        final rawName = entry.key;
+                        final shortName = rawName.replaceAll(' / Paid Leave', '').replaceAll(' Leave', '');
+                        final data = entry.value as Map<String, dynamic>? ?? {};
+                        final tot = (data['total'] as num?)?.toInt() ?? 10;
+                        final rem = (data['remaining'] as num?)?.toInt() ?? 10;
+
+                        Color itemBg = AppColors.neoCyan;
+                        if (rawName.contains('Casual')) itemBg = AppColors.neoYellow;
+                        if (rawName.contains('Sick')) itemBg = AppColors.neoGreen;
+                        if (rawName.contains('Maternity') || rawName.contains('Paternity')) itemBg = AppColors.neoPurple;
+                        if (rawName.contains('Bereavement')) itemBg = AppColors.neoPink;
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: itemBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: borderColor,
+                                offset: const Offset(2, 2),
+                                blurRadius: 0,
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                shortName,
+                                style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.neoBorder),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$rem/$tot Days',
+                                style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: AppColors.neoBorder),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // 6.5 Group Mediclaim & Health Insurance Card (Neo-Brutalist)
+            Container(
+              margin: const EdgeInsets.only(bottom: 18),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: borderColor, width: 2.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: borderColor,
+                    offset: const Offset(4, 4),
+                    blurRadius: 0,
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: AppColors.neoPink,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: borderColor, width: 2),
+                                ),
+                                child: const Icon(Icons.medical_services_rounded, color: AppColors.neoBorder, size: 18),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Group Mediclaim Insurance',
+                                    style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 15, color: isDark ? Colors.white : AppColors.neoBorder),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.neoGreen,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: borderColor, width: 1.5),
+                          ),
+                          child: Text(
+                            'Active Coverage',
+                            style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 10.5, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.neoPink,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor, width: 2.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: borderColor,
+                            offset: const Offset(3, 3),
+                            blurRadius: 0,
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Physique 57 Health Pass',
+                                style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 11, fontWeight: FontWeight.w900),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: borderColor, width: 1.5),
+                                ),
+                                child: Text(
+                                  'Blood Group: ${user.bloodGroup}',
+                                  style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 10, fontWeight: FontWeight.w900),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              user.mediclaimId,
+                              style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: 1.5),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Cashless Cover', style: GoogleFonts.plusJakartaSans(color: AppColors.neoBorder, fontSize: 10, fontWeight: FontWeight.w700)),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(user.coverageAmount),
+                                        style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 15, fontWeight: FontWeight.w900),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text('TPA Hotline', style: GoogleFonts.plusJakartaSans(color: AppColors.neoBorder, fontSize: 10, fontWeight: FontWeight.w700)),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        '1800-PHY-57HEALTH',
+                                        style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 11.5, fontWeight: FontWeight.w900),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
-                        _buildLeaveBarItem('Annual', annualRemaining, annualTotal, const Color(0xFF3B82F6)),
-                        const SizedBox(width: 10),
-                        _buildLeaveBarItem('Casual', casualRemaining, casualTotal, const Color(0xFFF59E0B)),
-                        const SizedBox(width: 10),
-                        _buildLeaveBarItem('Sick', sickRemaining, sickTotal, const Color(0xFF10B981)),
+                        const Icon(Icons.phone_in_talk_rounded, size: 16, color: AppColors.statusRejected),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Emergency: ${user.emergencyContactName} (${user.emergencyContactPhone})',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700, color: isDark ? Colors.white70 : AppColors.neoBorder),
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -774,70 +1207,144 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ),
 
-            // 7. Automated Compensation & Monthly Payslip Card
-            Card(
-              elevation: 0,
-              margin: const EdgeInsets.only(bottom: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(22),
-                side: const BorderSide(color: Color(0xFFE2E8F0)),
+            // 7. Automated Compensation & Monthly Payslip Card (Neo-Brutalist)
+            Container(
+              margin: const EdgeInsets.only(bottom: 18),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: borderColor, width: 2.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: borderColor,
+                    offset: const Offset(4, 4),
+                    blurRadius: 0,
+                  ),
+                ],
               ),
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Compensation & Earnings',
-                          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: AppColors.neoGreen,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: borderColor, width: 2),
+                                ),
+                                child: const Icon(Icons.account_balance_wallet_rounded, color: AppColors.neoBorder, size: 18),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Compensation & Earnings',
+                                    style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 15, color: isDark ? Colors.white : AppColors.neoBorder),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        const Icon(Icons.account_balance_wallet_outlined, color: Colors.green),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: user.payStatus == 'Processed' ? AppColors.neoGreen : AppColors.neoYellow,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: borderColor, width: 1.5),
+                          ),
+                          child: Text(
+                            user.payStatus,
+                            style: GoogleFonts.outfit(
+                              color: AppColors.neoBorder,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Live simulation based on monthly attendance & paid leave quotas.',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600]),
-                    ),
                     const SizedBox(height: 14),
+
+                    // Net Pay Banner Box
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(14),
+                        color: isDark ? AppColors.neoBgDark : AppColors.neoBgLight,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor, width: 2),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Estimated Net Take-Home', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey)),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '$formattedNetPay / mo',
-                                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: const Color(0xFF0F172A)),
-                                  overflow: TextOverflow.ellipsis,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Net Take-Home Pay',
+                                      style: GoogleFonts.plusJakartaSans(fontSize: 11, color: isDark ? Colors.white70 : AppColors.textSecondaryLight, fontWeight: FontWeight.w700),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        '$formattedNetPay / mo',
+                                        style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 18, color: isDark ? AppColors.neoYellow : AppColors.neoIndigo),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 8),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.neoYellow,
+                                    foregroundColor: AppColors.neoBorder,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      side: BorderSide(color: borderColor, width: 2),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.receipt_long_rounded, size: 15, color: AppColors.neoBorder),
+                                  onPressed: () => _showPayslipModal(context, user),
+                                  label: Text('View Payslip', style: GoogleFonts.outfit(fontSize: 11.5, fontWeight: FontWeight.w900)),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 10),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                            onPressed: () => _showPayslipModal(context, user),
-                            child: Text('View Payslip', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold)),
+                          Divider(height: 20, thickness: 1.5, color: borderColor.withValues(alpha: 0.3)),
+                          // Dynamic Breakdown Chips Grid
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _buildCompensationChip('Base Salary', '₹${user.baseSalary.round()}', AppColors.neoCyan, borderColor),
+                              _buildCompensationChip('HRA (${user.hraPercentage.toInt()}%)', '+₹${user.hraAmount.round()}', AppColors.neoGreen, borderColor),
+                              _buildCompensationChip('Allowances (${user.allowancePercentage.toInt()}%)', '+₹${user.allowanceAmount.round()}', AppColors.neoYellow, borderColor),
+                              _buildCompensationChip('Incentive', '+₹${user.monthlyIncentive.round()}', AppColors.neoPurple, borderColor),
+                              _buildCompensationChip('PF Deduct (${user.pfPercentage.toInt()}%)', '-₹${user.pfDeduction.round()}', AppColors.neoPink, borderColor),
+                            ],
                           ),
                         ],
                       ),
@@ -847,7 +1354,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ),
 
-            // 8. Request Center Statistics
+            // 8. Request Center Statistics (Neo-Brutalist Pop Stat Cards)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -856,13 +1363,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   children: [
                     Text(
                       'My Request Center',
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17),
+                      style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 18, color: isDark ? Colors.white : AppColors.neoBorder),
                     ),
                     InkWell(
                       onTap: () => context.push('/my-requests'),
                       child: Text(
                         'View All →',
-                        style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
+                        style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: isDark ? AppColors.neoYellow : AppColors.neoIndigo),
                       ),
                     ),
                   ],
@@ -870,24 +1377,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    _buildStatCard('Pending', requestsState.pendingCount.toString(), Colors.orange),
+                    _buildStatCard('Pending', requestsState.pendingCount.toString(), AppColors.neoYellow, borderColor),
                     const SizedBox(width: 10),
-                    _buildStatCard('Approved', requestsState.approvedCount.toString(), Colors.green),
+                    _buildStatCard('Approved', requestsState.approvedCount.toString(), AppColors.neoGreen, borderColor),
                     const SizedBox(width: 10),
-                    _buildStatCard('Rejected', requestsState.rejectedCount.toString(), Colors.red),
+                    _buildStatCard('Rejected', requestsState.rejectedCount.toString(), AppColors.neoPink, borderColor),
                   ],
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 22),
 
-            // 9. Interactive Action Tasks with Filter Tabs
+            // 9. Interactive Action Tasks with Filter Tabs (Neo-Brutalist)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'My Assigned Tasks',
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17),
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 18, color: isDark ? Colors.white : AppColors.neoBorder),
                 ),
               ],
             ),
@@ -904,18 +1411,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     onTap: () => ref.read(dashboardTaskFilterProvider.notifier).state = f,
                     child: Container(
                       margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primary : (isDark ? const Color(0xFF1E293B) : Colors.white),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: isSelected ? AppColors.primary : const Color(0xFFE2E8F0)),
+                        color: isSelected ? AppColors.neoYellow : (isDark ? AppColors.surfaceDark : Colors.white),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: borderColor, width: 2),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: borderColor,
+                                  offset: const Offset(2, 2),
+                                  blurRadius: 0,
+                                )
+                              ]
+                            : null,
                       ),
                       child: Text(
                         f,
                         style: GoogleFonts.outfit(
                           fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : (isDark ? Colors.grey[300] : Colors.grey[700]),
+                          fontWeight: FontWeight.w900,
+                          color: isSelected ? AppColors.neoBorder : (isDark ? Colors.white : AppColors.neoBorder),
                         ),
                       ),
                     ),
@@ -923,7 +1439,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 }).toList(),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             tasksState.when(
               data: (tasks) {
@@ -934,19 +1450,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 }).toList();
 
                 if (filteredTasks.isEmpty) {
-                  return Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  return Container(
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.surfaceDark : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor, width: 2),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                      child: Center(
-                        child: Text(
-                          'No $currentTaskFilter tasks found.',
-                          style: GoogleFonts.plusJakartaSans(color: Colors.grey),
-                        ),
+                    child: Center(
+                      child: Text(
+                        'No $currentTaskFilter tasks found.',
+                        style: GoogleFonts.outfit(color: Colors.grey, fontWeight: FontWeight.w700),
                       ),
                     ),
                   );
@@ -958,19 +1472,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     final isInProgress = task.status == 'In Progress';
                     final isOverdue = task.dueDate.isBefore(DateTime.now()) && !isCompleted;
 
-                    return Card(
+                    Color taskTagBg = AppColors.neoYellow;
+                    if (isCompleted) taskTagBg = AppColors.neoGreen;
+                    if (isInProgress) taskTagBg = AppColors.neoCyan;
+                    if (isOverdue) taskTagBg = AppColors.neoPink;
+
+                    return Container(
                       margin: const EdgeInsets.only(bottom: 12),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        side: BorderSide(
-                          color: isOverdue
-                              ? Colors.red.withValues(alpha: 0.4)
-                              : isCompleted
-                                  ? Colors.green.withValues(alpha: 0.3)
-                                  : const Color(0xFFE2E8F0),
-                          width: 1,
-                        ),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.surfaceDark : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor, width: 2.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: borderColor,
+                            offset: const Offset(3, 3),
+                            blurRadius: 0,
+                          ),
+                        ],
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(14),
@@ -983,45 +1502,40 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   child: Text(
                                     task.title,
                                     style: GoogleFonts.outfit(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16,
                                       decoration: isCompleted ? TextDecoration.lineThrough : null,
-                                      color: isCompleted ? Colors.grey : null,
+                                      color: isCompleted ? Colors.grey : (isDark ? Colors.white : AppColors.neoBorder),
                                     ),
                                   ),
                                 ),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: (isCompleted
-                                            ? Colors.green
-                                            : isInProgress
-                                                ? Colors.blue
-                                                : isOverdue
-                                                    ? Colors.red
-                                                    : Colors.orange)
-                                        .withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(6),
+                                    color: taskTagBg,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: borderColor, width: 1.5),
                                   ),
                                   child: Text(
                                     isOverdue ? 'Overdue' : task.status,
                                     style: GoogleFonts.outfit(
-                                      color: isCompleted
-                                          ? Colors.green
-                                          : isInProgress
-                                              ? Colors.blue
-                                              : isOverdue
-                                                  ? Colors.red
-                                                  : Colors.orange,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 10,
+                                      color: AppColors.neoBorder,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 10.5,
                                     ),
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 6),
-                            Text(task.description, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[700])),
+                            Text(
+                              task.description,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                              ),
+                            ),
                             const SizedBox(height: 8),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1029,8 +1543,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 Expanded(
                                   child: Text(
                                     'Due: ${DateFormat('yyyy-MM-dd').format(task.dueDate)}',
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 11, color: isOverdue ? Colors.red : Colors.grey[500]),
-                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700, color: isOverdue ? AppColors.statusRejected : Colors.grey[500]),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -1043,22 +1556,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                         onPressed: () {
                                           ref.read(employeeTasksProvider.notifier).updateTaskStatus(task.id, 'In Progress');
                                         },
-                                        child: Text('Start Task', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold)),
+                                        child: Text('Start Task', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? AppColors.neoYellow : AppColors.neoIndigo)),
                                       ),
                                     if (!isCompleted) ...[
                                       const SizedBox(width: 4),
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.green,
+                                          backgroundColor: AppColors.neoGreen,
+                                          foregroundColor: AppColors.neoBorder,
                                           visualDensity: VisualDensity.compact,
                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                            side: BorderSide(color: borderColor, width: 1.5),
+                                          ),
                                           elevation: 0,
                                         ),
                                         onPressed: () {
                                           ref.read(employeeTasksProvider.notifier).updateTaskStatus(task.id, 'Completed');
                                         },
-                                        child: Text('Mark Done', style: GoogleFonts.outfit(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                        child: Text('Mark Done', style: GoogleFonts.outfit(color: AppColors.neoBorder, fontSize: 12, fontWeight: FontWeight.w900)),
                                       ),
                                     ],
                                   ],
@@ -1081,33 +1598,47 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildQuickActionBtn(BuildContext context, String label, IconData icon, Color color, String route) {
+  Widget _buildQuickActionBtn(BuildContext context, String label, IconData icon, Color color, String route, Color borderColor) {
     return Expanded(
       child: GestureDetector(
         onTap: () => context.push(route),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
+            color: color,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
+            border: Border.all(color: borderColor, width: 2.5),
+            boxShadow: [
+              BoxShadow(
+                color: borderColor,
+                offset: const Offset(3, 3),
+                blurRadius: 0,
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
+                  color: Colors.white,
                   shape: BoxShape.circle,
+                  border: Border.all(color: borderColor, width: 1.5),
                 ),
-                child: Icon(icon, color: color, size: 20),
+                child: Icon(icon, color: AppColors.neoBorder, size: 18),
               ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: color),
-                textAlign: TextAlign.center,
+              const SizedBox(height: 5),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.neoBorder),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ),
             ],
           ),
@@ -1116,60 +1647,63 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildLeaveBarItem(String label, int remaining, int total, Color color) {
-    final pct = total > 0 ? (remaining / total).clamp(0.0, 1.0) : 0.0;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.15)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey)),
-            const SizedBox(height: 4),
-            Text(
-              '$remaining / $total',
-              style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: color),
-            ),
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: pct,
-                minHeight: 4,
-                backgroundColor: color.withValues(alpha: 0.15),
-                valueColor: AlwaysStoppedAnimation<Color>(color),
-              ),
-            ),
-          ],
-        ),
+  Widget _buildCompensationChip(String label, String amount, Color color, Color borderColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: borderColor,
+            offset: const Offset(1.5, 1.5),
+            blurRadius: 0,
+          ),
+        ],
+      ),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            '$label: ',
+            style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.neoBorder),
+          ),
+          Text(
+            amount,
+            style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.neoBorder),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildStatCard(String label, String count, Color color) {
+  Widget _buildStatCard(String label, String count, Color color, Color borderColor) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
+          color: color,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.15)),
+          border: Border.all(color: borderColor, width: 2.5),
+          boxShadow: [
+            BoxShadow(
+              color: borderColor,
+              offset: const Offset(3, 3),
+              blurRadius: 0,
+            ),
+          ],
         ),
         child: Column(
           children: [
             Text(
               count,
-              style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: color),
+              style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.neoBorder),
             ),
             const SizedBox(height: 2),
             Text(
               label,
-              style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+              style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.neoBorder),
             ),
           ],
         ),
@@ -1178,108 +1712,313 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _showAnnouncementDialog(BuildContext context, AnnouncementModel ann) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white : AppColors.neoBorder;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: borderColor, width: 2.5),
+        ),
         title: Row(
           children: [
-            const Icon(Icons.campaign_rounded, color: AppColors.primary),
+            const Icon(Icons.campaign_rounded, color: AppColors.neoBorder, size: 24),
             const SizedBox(width: 8),
-            Expanded(child: Text(ann.title, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 17))),
+            Expanded(child: Text(ann.title, style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 18))),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Priority: ${ann.priority}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 12)),
-            const SizedBox(height: 8),
-            Text(ann.message, style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.neoYellow,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: borderColor, width: 1.5),
+              ),
+              child: Text('Priority: ${ann.priority}', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: AppColors.neoBorder, fontSize: 11)),
+            ),
+            const SizedBox(height: 10),
+            Text(ann.message, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
-            Text('Published: ${DateFormat('yyyy-MM-dd hh:mm a').format(ann.createdAt)}', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey)),
+            Text('Published: ${DateFormat('yyyy-MM-dd hh:mm a').format(ann.createdAt)}', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey)),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Close', style: GoogleFonts.outfit(fontWeight: FontWeight.bold))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.neoYellow),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Close', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: AppColors.neoBorder)),
+          ),
         ],
       ),
     );
   }
 
   void _showPayslipModal(BuildContext context, dynamic user) {
-    final basePay = _getBaseSalary(user);
-    final hra = (basePay * 0.4).round();
-    final allowances = (basePay * 0.15).round();
-    final pfDeduction = (basePay * 0.08).round();
-    final gross = basePay + hra + allowances;
-    final netPay = gross - pfDeduction;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white : AppColors.neoBorder;
 
-    final baseStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(basePay);
-    final hraStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(hra);
-    final allowStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(allowances);
-    final pfStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(pfDeduction);
-    final grossStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(gross);
-    final netStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(netPay);
+    final empModel = (user is EmployeeModel)
+        ? user
+        : const EmployeeModel(
+            id: 'EMP-001',
+            name: 'Mayur Chaudhari',
+            email: 'mayurchaudhari@gmail.com',
+            department: 'Operations',
+            designation: 'Studio Operations Lead',
+            reportingManagerName: 'Mayur Chaudhari',
+            reportingManagerEmail: 'mayurchaudhari@gmail.com',
+            photoUrl: '',
+          );
+
+    final payslips = PayslipModel.generateLast6Months(empModel);
+    int selectedIndex = 0;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      backgroundColor: isDark ? AppColors.neoBgDark : AppColors.neoBgLight,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        side: BorderSide(color: borderColor, width: 3),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final selectedPayslip = payslips[selectedIndex];
+
+          final baseStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(selectedPayslip.baseSalary);
+          final hraStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(selectedPayslip.hraAmount);
+          final allowStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(selectedPayslip.allowanceAmount);
+          final incentiveStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(selectedPayslip.monthlyIncentive);
+          final otStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(selectedPayslip.overtimePay);
+          final grossStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(selectedPayslip.grossSalary);
+          final pfStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(selectedPayslip.pfDeduction);
+          final taxStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(selectedPayslip.taxDeduction);
+          final netStr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0).format(selectedPayslip.netTakeHomePay);
+
+          return Container(
+            padding: const EdgeInsets.all(22),
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.receipt_long_rounded, color: AppColors.primary, size: 28),
-                const SizedBox(width: 10),
-                Text('Monthly Payslip Breakdown', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 19)),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.neoYellow,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: borderColor, width: 2),
+                      ),
+                      child: const Icon(Icons.receipt_long_rounded, color: AppColors.neoBorder, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '6-Month Payslip Downloader',
+                              style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 17, color: isDark ? Colors.white : AppColors.neoBorder),
+                            ),
+                          ),
+                          Text(
+                            '${selectedPayslip.employeeName} • ${selectedPayslip.department}',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Horizontal Month Selector Tabs (Last 6 Months)
+                SizedBox(
+                  height: 38,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: payslips.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final p = payslips[index];
+                      final isSelected = index == selectedIndex;
+                      return GestureDetector(
+                        onTap: () {
+                          setModalState(() {
+                            selectedIndex = index;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.neoYellow : (isDark ? AppColors.surfaceDark : Colors.white),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: borderColor, width: isSelected ? 2.5 : 1.5),
+                            boxShadow: isSelected
+                                ? [BoxShadow(color: borderColor, offset: const Offset(2, 2), blurRadius: 0)]
+                                : null,
+                          ),
+                          child: Text(
+                            p.monthYearStr,
+                            style: GoogleFonts.outfit(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w900,
+                              color: isSelected ? AppColors.neoBorder : (isDark ? Colors.white70 : AppColors.neoBorder),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                Expanded(
+                  child: ListView(
+                    children: [
+                      // Payslip Status Banner
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.surfaceDark : AppColors.neoBgLight,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: borderColor, width: 2),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Salary Month: ${selectedPayslip.monthYearStr}', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: isDark ? Colors.white : AppColors.neoBorder)),
+                                Text('Transaction: ${selectedPayslip.transactionId}', style: GoogleFonts.plusJakartaSans(fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.grey)),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.neoGreen,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: borderColor, width: 1.5),
+                              ),
+                              child: Text('PAID', style: GoogleFonts.outfit(fontSize: 10.5, fontWeight: FontWeight.w900, color: AppColors.neoBorder)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      _buildPayslipRow('Basic Salary', baseStr, isDark, borderColor),
+                      _buildPayslipRow('HRA', hraStr, isDark, borderColor),
+                      _buildPayslipRow('Allowances', allowStr, isDark, borderColor),
+                      _buildPayslipRow('Incentives', incentiveStr, isDark, borderColor, color: isDark ? AppColors.neoYellow : AppColors.neoIndigo),
+                      if (selectedPayslip.overtimePay > 0)
+                        _buildPayslipRow('Overtime Pay', otStr, isDark, borderColor, color: AppColors.neoGreen),
+                      Divider(height: 16, thickness: 2, color: borderColor),
+                      _buildPayslipRow('Gross Pay', grossStr, isDark, borderColor, isBold: true),
+                      _buildPayslipRow('PF Deduction', '- $pfStr', isDark, borderColor, color: AppColors.statusRejected),
+                      if (selectedPayslip.taxDeduction > 0)
+                        _buildPayslipRow('TDS / Tax', '- $taxStr', isDark, borderColor, color: AppColors.statusRejected),
+                      Divider(height: 16, thickness: 2, color: borderColor),
+                      _buildPayslipRow('Net Pay', netStr, isDark, borderColor, isBold: true, color: isDark ? AppColors.neoGreen : AppColors.statusApproved),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Download PDF Button & Share Button
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.neoYellow,
+                          foregroundColor: AppColors.neoBorder,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: borderColor, width: 2.5),
+                          ),
+                          elevation: 0,
+                        ),
+                        icon: const Icon(Icons.picture_as_pdf_rounded, size: 20, color: AppColors.neoBorder),
+                        onPressed: () {
+                          PayslipPdfGenerator.downloadAndPrintPdf(selectedPayslip);
+                        },
+                        label: Text('DOWNLOAD PAYSLIP (PDF)', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 1,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.neoCyan,
+                          foregroundColor: AppColors.neoBorder,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: borderColor, width: 2.5),
+                          ),
+                          elevation: 0,
+                        ),
+                        icon: const Icon(Icons.share_rounded, size: 18, color: AppColors.neoBorder),
+                        onPressed: () {
+                          PayslipPdfGenerator.sharePdf(selectedPayslip);
+                        },
+                        label: Text('SHARE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 12)),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-            const SizedBox(height: 6),
-            Text('Employee: ${user.name} (${user.department} • ${user.designation})', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
-            const Divider(height: 24),
-            _buildPayslipRow('Basic Salary', baseStr),
-            _buildPayslipRow('House Rent Allowance (HRA)', hraStr),
-            _buildPayslipRow('Special Enterprise Allowance', allowStr),
-            const Divider(height: 16),
-            _buildPayslipRow('Gross Monthly Earnings', grossStr, isBold: true),
-            _buildPayslipRow('Provident Fund (EPF) Deduction', '- $pfStr', color: Colors.red),
-            const Divider(height: 16),
-            _buildPayslipRow('Estimated Net Monthly Pay', netStr, isBold: true, color: Colors.green),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                minimumSize: const Size(double.infinity, 46),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('Close Payslip', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildPayslipRow(String label, String value, {bool isBold = false, Color? color}) {
+  Widget _buildPayslipRow(String label, String value, bool isDark, Color borderColor, {bool isBold = false, Color? color}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+                color: isDark ? Colors.white : AppColors.neoBorder,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Text(
             value,
             style: GoogleFonts.outfit(
-              fontSize: 15,
-              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-              color: color ?? const Color(0xFF0F172A),
+              fontSize: 14.5,
+              fontWeight: isBold ? FontWeight.w900 : FontWeight.w700,
+              color: color ?? (isDark ? Colors.white : AppColors.neoBorder),
             ),
           ),
         ],

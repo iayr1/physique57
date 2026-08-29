@@ -6,29 +6,78 @@
   body {
     font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
     color: #0F172A;
-    background-color: #F8FAFC;
+    background-color: #FFFDF5;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
   }
 }
 
-/* Custom modern scrollbars */
+/* Custom Neo-Brutalist scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #F1F5F9;
+  background: #FFFDF5;
+  border-left: 2px solid #0F172A;
 }
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: #FFDE59;
+  border: 2px solid #0F172A;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background: #00F0FF;
 }
 
-/* Animations & glass effects */
+/* Neo-Brutalist reusable component utilities */
+.neo-card {
+  background-color: #FFFFFF;
+  border: 2.5px solid #0F172A;
+  box-shadow: 4px 4px 0px 0px #0F172A;
+  border-radius: 1rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.neo-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px #0F172A;
+}
+
+.neo-button {
+  background-color: #FFDE59;
+  color: #0F172A;
+  font-weight: 800;
+  border: 2.5px solid #0F172A;
+  box-shadow: 3px 3px 0px 0px #0F172A;
+  border-radius: 0.75rem;
+  transition: all 0.1s ease;
+}
+
+.neo-button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px 0px #0F172A;
+}
+
+.neo-input {
+  border: 2.5px solid #0F172A;
+  box-shadow: 3px 3px 0px 0px #0F172A;
+  border-radius: 0.75rem;
+  background-color: #FFFFFF;
+  font-weight: 600;
+}
+
+.neo-input:focus {
+  outline: none;
+  border-color: #4F46E5;
+  box-shadow: 4px 4px 0px 0px #0F172A;
+}
+
 .glass-panel {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 253, 245, 0.95);
+  border-bottom: 2.5px solid #0F172A;
 }

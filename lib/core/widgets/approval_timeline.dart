@@ -14,6 +14,9 @@ class ApprovalTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white : AppColors.neoBorder;
+
     return Column(
       children: List.generate(steps.length, (index) {
         final step = steps[index];
@@ -23,10 +26,10 @@ class ApprovalTimeline extends StatelessWidget {
         IconData dotIcon;
 
         if (step.isCompleted) {
-          dotColor = step.isRejected ? AppColors.statusRejected : AppColors.statusApproved;
+          dotColor = step.isRejected ? AppColors.statusRejected : AppColors.neoGreen;
           dotIcon = step.isRejected ? Icons.close_rounded : Icons.check_rounded;
         } else {
-          dotColor = AppColors.statusPending;
+          dotColor = AppColors.neoYellow;
           dotIcon = Icons.access_time_rounded;
         }
 
@@ -43,23 +46,28 @@ class ApprovalTimeline extends StatelessWidget {
                       width: 28,
                       height: 28,
                       decoration: BoxDecoration(
-                        color: dotColor.withValues(alpha: 0.15),
+                        color: dotColor,
                         shape: BoxShape.circle,
-                        border: Border.all(color: dotColor, width: 2),
+                        border: Border.all(color: borderColor, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: borderColor,
+                            offset: const Offset(2, 2),
+                            blurRadius: 0,
+                          ),
+                        ],
                       ),
                       child: Icon(
                         dotIcon,
                         size: 16,
-                        color: dotColor,
+                        color: AppColors.neoBorder,
                       ),
                     ),
                     if (!isLast)
                       Expanded(
                         child: Container(
-                          width: 2,
-                          color: step.isCompleted
-                              ? dotColor.withValues(alpha: 0.4)
-                              : Colors.grey.withValues(alpha: 0.3),
+                          width: 2.5,
+                          color: borderColor,
                         ),
                       ),
                   ],
@@ -79,9 +87,10 @@ class ApprovalTimeline extends StatelessWidget {
                           Expanded(
                             child: Text(
                               step.title,
-                              style: GoogleFonts.plusJakartaSans(
+                              style: GoogleFonts.outfit(
                                 fontSize: 15,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? Colors.white : AppColors.neoBorder,
                               ),
                             ),
                           ),
@@ -91,7 +100,8 @@ class ApprovalTimeline extends StatelessWidget {
                               DateFormatter.formatDateTime(step.timestamp!),
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
-                                color: Theme.of(context).brightness == Brightness.dark
+                                fontWeight: FontWeight.w600,
+                                color: isDark
                                     ? AppColors.textSecondaryDark
                                     : AppColors.textSecondaryLight,
                               ),
@@ -105,7 +115,8 @@ class ApprovalTimeline extends StatelessWidget {
                           '${step.actorRole ?? "Assigned"}: ${step.actorName}',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
-                            color: Theme.of(context).brightness == Brightness.dark
+                            fontWeight: FontWeight.w600,
+                            color: isDark
                                 ? AppColors.textSecondaryDark
                                 : AppColors.textSecondaryLight,
                           ),
@@ -118,24 +129,29 @@ class ApprovalTimeline extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: step.isRejected
                                 ? AppColors.statusRejectedBg
-                                : (Theme.of(context).brightness == Brightness.dark
-                                    ? AppColors.surfaceDark
-                                    : Colors.grey[100]),
-                            borderRadius: BorderRadius.circular(8),
+                                : (isDark ? AppColors.surfaceDark : Colors.white),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: step.isRejected
-                                  ? AppColors.statusRejected.withValues(alpha: 0.3)
-                                  : Colors.grey.withValues(alpha: 0.2),
+                              color: borderColor,
+                              width: 2,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: borderColor,
+                                offset: const Offset(2, 2),
+                                blurRadius: 0,
+                              ),
+                            ],
                           ),
                           child: Text(
                             step.comment!,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 13,
+                              fontWeight: FontWeight.w600,
                               fontStyle: FontStyle.italic,
                               color: step.isRejected
                                   ? AppColors.statusRejected
-                                  : null,
+                                  : (isDark ? Colors.white : AppColors.neoBorder),
                             ),
                           ),
                         ),

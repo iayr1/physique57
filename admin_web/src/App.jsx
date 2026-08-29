@@ -23,6 +23,9 @@ import { AttendanceView } from './views/AttendanceView';
 import { TasksView } from './views/TasksView';
 import { AnnouncementsView } from './views/AnnouncementsView';
 import { AuditLogsView } from './views/AuditLogsView';
+import { CompensationView } from './views/CompensationView';
+import { LeaveQuotaView } from './views/LeaveQuotaView';
+import { HealthWellnessView } from './views/HealthWellnessView';
 import { playNotificationChime } from './utils/audioUtils';
 import { showDesktopNotification, requestBrowserNotificationPermission } from './utils/notificationUtils';
 
@@ -344,10 +347,20 @@ export const App = () => {
   const pendingTasksCount = tasks.filter((t) => (t.status || 'Pending') !== 'Completed').length;
 
   // Active view title
-  const currentTabTitle = navItems[currentTab]?.label || 'Dashboard';
+  const tabTitles = [
+    'Overview',
+    'User Directory',
+    'Onboard Staff',
+    'Leave Approvals',
+    'Attendance',
+    'Tasks',
+    'Notices',
+    'Audit Logs',
+  ];
+  const currentTabTitle = tabTitles[currentTab] || 'Dashboard';
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-[#FFFDF5] flex">
       {/* Sidebar */}
       <Sidebar
         currentTab={currentTab}
@@ -362,8 +375,8 @@ export const App = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-72">
-        {/* Navbar */}
+      {/* Main Workspace Layout */}
+      <div className="lg:pl-72 flex flex-col min-h-screen flex-1">
         <Navbar
           onMenuClick={() => setIsMobileOpen(true)}
           currentTabTitle={currentTabTitle}
@@ -372,8 +385,7 @@ export const App = () => {
           onSelectTab={setCurrentTab}
         />
 
-        {/* Dynamic View Body */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
           {currentTab === 0 && (
             <OverviewView
               employees={employees}
@@ -418,6 +430,16 @@ export const App = () => {
           )}
 
           {currentTab === 7 && <AuditLogsView auditLogs={auditLogs} />}
+
+          {currentTab === 8 && <CompensationView employees={employees} />}
+
+          {currentTab === 9 && (
+            <LeaveQuotaView employees={employees} setTab={setCurrentTab} />
+          )}
+
+          {currentTab === 10 && (
+            <HealthWellnessView employees={employees} />
+          )}
         </main>
       </div>
 
@@ -428,15 +450,15 @@ export const App = () => {
         title={`Reject Request: ${rejectingRequest?.id || ''}`}
       >
         <form onSubmit={handleConfirmReject} className="space-y-4">
-          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
-            <p className="font-bold">Specify Reason for Employee</p>
-            <p className="mt-0.5">
+          <div className="p-4 rounded-xl bg-neo-pink/30 border-2 border-neo-border text-xs text-neo-border font-extrabold shadow-brutal-sm">
+            <p className="font-black text-sm">Specify Reason for Employee</p>
+            <p className="mt-1 font-semibold">
               Explain why this request is being rejected. This note will be recorded in the audit trail and sent to the employee.
             </p>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-black text-neo-border uppercase tracking-wider mb-1.5 font-display">
               Rejection Reason / Comments *
             </label>
             <textarea
@@ -445,22 +467,22 @@ export const App = () => {
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
               placeholder="e.g. Quota limit exceeded / Insufficient documentation attached / Schedule conflict"
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-rose-500 focus:bg-white"
+              className="w-full px-3.5 py-2.5 bg-white border-2 border-neo-border rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-neo-indigo shadow-brutal-sm"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t-2 border-neo-border">
             <button
               type="button"
               onClick={() => setRejectingRequest(null)}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100"
+              className="px-4 py-2 text-xs font-black text-neo-border hover:bg-neo-yellow/30 rounded-xl border border-neo-border transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isRejecting}
-              className="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs disabled:opacity-60"
+              className="px-5 py-2 text-xs font-black text-white bg-rose-600 border-2 border-neo-border rounded-xl shadow-brutal-sm hover:translate-x-0.5 hover:translate-y-0.5 transition-all disabled:opacity-60 cursor-pointer"
             >
               {isRejecting ? 'Rejecting...' : 'Confirm Rejection'}
             </button>

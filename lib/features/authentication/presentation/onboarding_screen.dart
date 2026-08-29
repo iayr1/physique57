@@ -20,52 +20,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   final List<OnboardingPageData> _pages = [
     OnboardingPageData(
-      title: 'Simplify Requests',
-      description: 'Submit and manage leave, travel, and expense requests in seconds directly from your phone.',
-      icon: Icons.receipt_long_rounded,
-      color: AppColors.primary,
-      bgGradient: const LinearGradient(
-        colors: [Color(0xFFEEF2FF), Color(0xFFE0E7FF)],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ),
-      darkBgGradient: const LinearGradient(
-        colors: [Color(0xFF0F172A), Color(0xFF1E1B4B)],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ),
+      badgeText: 'WORKFORCE HUB',
+      title: 'Instant Requests & Approvals',
+      description: 'Submit leave, travel, expense, and IT requests in seconds directly from your mobile device with real-time manager routing.',
+      icon: Icons.rocket_launch_rounded,
+      accentColor: AppColors.neoYellow,
     ),
     OnboardingPageData(
-      title: 'Visual Timelines',
-      description: 'Track approvals step-by-step. Get clear transparency on who is reviewing your request and when.',
-      icon: Icons.timeline_rounded,
-      color: AppColors.secondary,
-      bgGradient: const LinearGradient(
-        colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ),
-      darkBgGradient: const LinearGradient(
-        colors: [Color(0xFF0F172A), Color(0xFF064E3B)],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ),
+      badgeText: 'LIVE TRANSPARENCY',
+      title: 'Real-Time Audit & Tracking',
+      description: 'Track manager & HR approval timelines step-by-step with instant status notifications and total transparency.',
+      icon: Icons.track_changes_rounded,
+      accentColor: AppColors.neoCyan,
     ),
     OnboardingPageData(
-      title: 'Smart Alerts',
-      description: 'Receive instant notifications and push updates the second your request status changes.',
-      icon: Icons.notifications_active_rounded,
-      color: AppColors.accent,
-      bgGradient: const LinearGradient(
-        colors: [Color(0xFFFFF1F2), Color(0xFFFFFFE4)],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ),
-      darkBgGradient: const LinearGradient(
-        colors: [Color(0xFF0F172A), Color(0xFF581C87)],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ),
+      badgeText: 'SMART PAYROLL',
+      title: 'Automated Payslips & Overtime',
+      description: 'Download verified 6-month payslip statements and log overtime hours with automatic salary component calculations.',
+      icon: Icons.payments_rounded,
+      accentColor: AppColors.neoPink,
     ),
   ];
 
@@ -88,226 +61,289 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget build(BuildContext context) {
     final currentPage = ref.watch(onboardingPageProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white : AppColors.neoBorder;
     final lastPage = currentPage == _pages.length - 1;
 
     return Scaffold(
-      body: AnimatedContainer(
-        duration: const Duration(milliseconds: 600),
-        decoration: BoxDecoration(
-          gradient: isDark
-              ? _pages[currentPage].darkBgGradient
-              : _pages[currentPage].bgGradient,
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Top Bar with Skip Button
-              Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: AnimatedOpacity(
+      backgroundColor: isDark ? AppColors.neoBgDark : AppColors.neoBgLight,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Top Bar with Brand Logo & Skip Chip
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Brand Mark Badge
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.neoYellow,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: borderColor, width: 2),
+                          boxShadow: [
+                            BoxShadow(color: borderColor, offset: const Offset(2, 2), blurRadius: 0),
+                          ],
+                        ),
+                        child: Image.asset(
+                          'assets/images/app_logo.png',
+                          width: 22,
+                          height: 22,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.fitness_center_rounded, size: 20, color: AppColors.neoBorder),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'PHYSIQUE 57',
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 16, color: isDark ? Colors.white : AppColors.neoBorder),
+                      ),
+                    ],
+                  ),
+
+                  // Skip Chip
+                  AnimatedOpacity(
                     opacity: lastPage ? 0.0 : 1.0,
-                    duration: const Duration(milliseconds: 300),
+                    duration: const Duration(milliseconds: 250),
                     child: IgnorePointer(
                       ignoring: lastPage,
-                      child: TextButton(
-                        onPressed: () {
+                      child: GestureDetector(
+                        onTap: () {
                           _pageController.animateToPage(
                             _pages.length - 1,
-                            duration: const Duration(milliseconds: 600),
+                            duration: const Duration(milliseconds: 500),
                             curve: Curves.easeOutQuint,
                           );
                         },
-                        child: Text(
-                          'Skip',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white70 : AppColors.primary,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.surfaceDark : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor, width: 2),
+                            boxShadow: [
+                              BoxShadow(color: borderColor, offset: const Offset(2, 2), blurRadius: 0),
+                            ],
+                          ),
+                          child: Text(
+                            'Skip',
+                            style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.w900, color: isDark ? Colors.white : AppColors.neoBorder),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
+            ),
 
-              // Page Content
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  onPageChanged: _onPageChanged,
-                  itemCount: _pages.length,
-                  itemBuilder: (context, index) {
-                    final page = _pages[index];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Graphic Icon Container
-                          Container(
-                            width: 160,
-                            height: 160,
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? page.color.withValues(alpha: 0.15)
-                                  : Colors.white,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: page.color.withValues(alpha: 0.3),
-                                width: 3,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: page.color.withValues(alpha: 0.12),
-                                  blurRadius: 24,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Icon(
-                                page.icon,
-                                size: 76,
-                                color: page.color,
-                              ),
-                            ),
-                          )
-                          .animate(key: ValueKey('icon-$index'))
-                          .scale(duration: 600.ms, curve: Curves.easeOutBack)
-                          .fadeIn(duration: 400.ms),
-                          
-                          const SizedBox(height: 48),
-                          
-                          // Slide Title
-                          Text(
-                            page.title,
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white : AppColors.textPrimaryLight,
-                              letterSpacing: -0.5,
-                            ),
-                          )
-                          .animate(key: ValueKey('title-$index'))
-                          .fadeIn(delay: 200.ms, duration: 500.ms)
-                          .slideY(begin: 0.2, end: 0, delay: 200.ms, duration: 500.ms),
-                          
-                          const SizedBox(height: 16),
-                          
-                          // Slide Description
-                          Text(
-                            page.description,
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                              height: 1.5,
-                            ),
-                          )
-                          .animate(key: ValueKey('desc-$index'))
-                          .fadeIn(delay: 350.ms, duration: 500.ms)
-                          .slideY(begin: 0.2, end: 0, delay: 350.ms, duration: 500.ms),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              // Bottom Navigation & Indicators
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Dot Indicators
-                    Row(
-                      children: List.generate(_pages.length, (index) {
-                        final isSelected = currentPage == index;
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          margin: const EdgeInsets.only(right: 6),
-                          width: isSelected ? 24 : 8,
-                          height: 8,
+            // Page View Content Cards
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: _onPageChanged,
+                itemCount: _pages.length,
+                itemBuilder: (context, index) {
+                  final page = _pages[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Main Feature Card
+                        Container(
+                          padding: const EdgeInsets.all(28),
                           decoration: BoxDecoration(
-                            color: isSelected
-                                ? _pages[currentPage].color
-                                : (isDark ? Colors.white24 : Colors.black12),
-                            borderRadius: BorderRadius.circular(4),
+                            color: isDark ? AppColors.surfaceDark : Colors.white,
+                            borderRadius: BorderRadius.circular(28),
+                            border: Border.all(color: borderColor, width: 3.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: borderColor,
+                                offset: const Offset(6, 6),
+                                blurRadius: 0,
+                              ),
+                            ],
                           ),
-                        );
-                      }),
-                    ),
-
-                    // Navigation Button
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      transitionBuilder: (Widget child, Animation<double> animation) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: ScaleTransition(scale: animation, child: child),
-                        );
-                      },
-                      child: lastPage
-                          ? SizedBox(
-                              key: const ValueKey('get_started_btn'),
-                              width: 150,
-                              child: ElevatedButton(
-                                onPressed: _handleGetStarted,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _pages[currentPage].color,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  elevation: 2,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Get Started',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                      ),
+                          child: Column(
+                            children: [
+                              // Feature Icon Container
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  color: page.accentColor,
+                                  borderRadius: BorderRadius.circular(22),
+                                  border: Border.all(color: AppColors.neoBorder, width: 3),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: AppColors.neoBorder,
+                                      offset: Offset(4, 4),
+                                      blurRadius: 0,
                                     ),
-                                    const SizedBox(width: 6),
-                                    const Icon(Icons.arrow_forward_rounded, size: 18),
                                   ],
                                 ),
-                              ),
-                            )
-                          : IconButton.filled(
-                              key: const ValueKey('next_btn'),
-                              onPressed: () {
-                                _pageController.nextPage(
-                                  duration: const Duration(milliseconds: 400),
-                                  curve: Curves.easeInOut,
-                                );
-                              },
-                              style: IconButton.styleFrom(
-                                backgroundColor: _pages[currentPage].color,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.all(14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                child: Center(
+                                  child: Icon(
+                                    page.icon,
+                                    size: 50,
+                                    color: AppColors.neoBorder,
+                                  ),
+                                ),
+                              )
+                              .animate(key: ValueKey('icon-$index'))
+                              .scale(duration: 500.ms, curve: Curves.easeOutBack)
+                              .fadeIn(duration: 350.ms),
+
+                              const SizedBox(height: 24),
+
+                              // Badge Chip
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: page.accentColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: AppColors.neoBorder, width: 2),
+                                  boxShadow: const [
+                                    BoxShadow(color: AppColors.neoBorder, offset: Offset(2, 2), blurRadius: 0),
+                                  ],
+                                ),
+                                child: Text(
+                                  page.badgeText,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.neoBorder,
+                                    letterSpacing: 0.6,
+                                  ),
                                 ),
                               ),
-                              icon: const Icon(Icons.arrow_forward_rounded, size: 20),
-                            ),
+
+                              const SizedBox(height: 16),
+
+                              // Slide Title
+                              Text(
+                                page.title,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w900,
+                                  color: isDark ? Colors.white : AppColors.neoBorder,
+                                  letterSpacing: -0.2,
+                                ),
+                              )
+                              .animate(key: ValueKey('title-$index'))
+                              .fadeIn(delay: 150.ms, duration: 400.ms)
+                              .slideY(begin: 0.15, end: 0, delay: 150.ms, duration: 400.ms),
+
+                              const SizedBox(height: 12),
+
+                              // Slide Description
+                              Text(
+                                page.description,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                  height: 1.55,
+                                ),
+                              )
+                              .animate(key: ValueKey('desc-$index'))
+                              .fadeIn(delay: 250.ms, duration: 400.ms)
+                              .slideY(begin: 0.15, end: 0, delay: 250.ms, duration: 400.ms),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
-            ],
-          ),
+            ),
+
+            // Bottom Navigation Bar with Neo-Brutalist Indicators & Action Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Neo-Brutalist Rectangular Page Indicators
+                  Row(
+                    children: List.generate(_pages.length, (index) {
+                      final isSelected = currentPage == index;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.only(right: 8),
+                        width: isSelected ? 32 : 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? _pages[currentPage].accentColor
+                              : (isDark ? AppColors.surfaceDark : Colors.white),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: borderColor, width: 2),
+                          boxShadow: isSelected
+                              ? [BoxShadow(color: borderColor, offset: const Offset(2, 2), blurRadius: 0)]
+                              : null,
+                        ),
+                      );
+                    }),
+                  ),
+
+                  // Neo-Brutalist Action Button
+                  GestureDetector(
+                    onTap: lastPage
+                        ? _handleGetStarted
+                        : () {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 400),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: lastPage ? AppColors.neoGreen : AppColors.neoYellow,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.neoBorder, width: 3),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: AppColors.neoBorder,
+                            offset: Offset(4, 4),
+                            blurRadius: 0,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            lastPage ? 'Get Started' : 'Next',
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                              color: AppColors.neoBorder,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 20,
+                            color: AppColors.neoBorder,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -315,19 +351,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 }
 
 class OnboardingPageData {
+  final String badgeText;
   final String title;
   final String description;
   final IconData icon;
-  final Color color;
-  final Gradient bgGradient;
-  final Gradient darkBgGradient;
+  final Color accentColor;
 
   OnboardingPageData({
+    required this.badgeText,
     required this.title,
     required this.description,
     required this.icon,
-    required this.color,
-    required this.bgGradient,
-    required this.darkBgGradient,
+    required this.accentColor,
   });
 }

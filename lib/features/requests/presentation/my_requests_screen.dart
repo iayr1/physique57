@@ -56,65 +56,116 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(requestsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white : AppColors.neoBorder;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? AppColors.neoBgDark : AppColors.neoBgLight,
       appBar: AppBar(
         scrolledUnderElevation: 0,
-        backgroundColor: isDark ? AppColors.backgroundDark : const Color(0xFFF8FAFC),
+        backgroundColor: isDark ? AppColors.neoBgDark : AppColors.neoBgLight,
         elevation: 0,
         title: Text(
           'My Requests',
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 18),
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.w900,
+            fontSize: 22,
+            color: isDark ? Colors.white : AppColors.neoBorder,
+          ),
         ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.primary,
-          indicatorWeight: 3,
-          labelColor: AppColors.primary,
-          labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13),
-          unselectedLabelColor: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-          unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500, fontSize: 13),
-          tabs: const [
-            Tab(text: 'All'),
-            Tab(text: 'Pending'),
-            Tab(text: 'Approved'),
-            Tab(text: 'Rejected'),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            height: 46,
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.surfaceDark : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: borderColor, width: 2.5),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              padding: const EdgeInsets.all(3),
+              indicatorSize: TabBarIndicatorSize.tab,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+              indicator: BoxDecoration(
+                color: AppColors.neoYellow,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.neoBorder, width: 2),
+              ),
+              labelColor: AppColors.neoBorder,
+              labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 12.5),
+              unselectedLabelColor: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+              unselectedLabelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 12.5),
+              tabs: const [
+                Tab(text: 'All Requests'),
+                Tab(text: 'Pending'),
+                Tab(text: 'Approved'),
+                Tab(text: 'Rejected'),
+              ],
+            ),
+          ),
         ),
       ),
       body: Column(
         children: [
           // Search & Category Filter Bar
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (val) {
-                ref.read(requestsProvider.notifier).setSearchQuery(val);
-              },
-              decoration: InputDecoration(
-                hintText: 'Search Request ID, type, or reason...',
-                prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear_rounded),
-                        onPressed: () {
-                          _searchController.clear();
-                          ref.read(requestsProvider.notifier).setSearchQuery('');
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+            child: Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: borderColor,
+                    offset: const Offset(3, 3),
+                    blurRadius: 0,
+                  ),
+                ],
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (val) {
+                  ref.read(requestsProvider.notifier).setSearchQuery(val);
+                },
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : AppColors.neoBorder,
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                decoration: InputDecoration(
+                  hintText: 'Search Request ID, type, or reason...',
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: isDark ? AppColors.neoYellow : AppColors.neoIndigo,
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear_rounded, color: isDark ? Colors.white : AppColors.neoBorder),
+                          onPressed: () {
+                            _searchController.clear();
+                            ref.read(requestsProvider.notifier).setSearchQuery('');
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: isDark ? AppColors.surfaceDark : Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: borderColor, width: 2.5),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: borderColor, width: 2.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                      color: isDark ? AppColors.neoYellow : AppColors.neoIndigo,
+                      width: 3,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -135,16 +186,20 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen>
                             const SizedBox(height: 12),
                             Text(
                               'No requests found',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                              style: GoogleFonts.outfit(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? AppColors.textSecondaryDark : AppColors.neoBorder,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Submit a new request to see it listed here.',
-                              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                color: Colors.grey[500],
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -158,16 +213,22 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen>
                         final isPending = request.status == RequestStatus.pendingManagerApproval ||
                             request.status == RequestStatus.pendingHrApproval;
 
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 14),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.surfaceDark : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: borderColor, width: 2.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: borderColor,
+                                offset: const Offset(4, 4),
+                                blurRadius: 0,
+                              ),
+                            ],
                           ),
-                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(16),
                             onTap: () => context.push('/requests/${request.requestId}'),
                             child: Padding(
                               padding: const EdgeInsets.all(16.0),
@@ -183,24 +244,25 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen>
                                             Container(
                                               padding: const EdgeInsets.all(8),
                                               decoration: BoxDecoration(
-                                                color: request.requestType.color.withValues(alpha: 0.12),
+                                                color: AppColors.neoCyan,
                                                 shape: BoxShape.circle,
+                                                border: Border.all(color: borderColor, width: 2),
                                               ),
                                               child: Icon(
                                                 request.requestType.icon,
                                                 size: 18,
-                                                color: request.requestType.color,
+                                                color: AppColors.neoBorder,
                                               ),
                                             ),
                                             const SizedBox(width: 10),
                                             Expanded(
                                               child: Text(
                                                 request.requestId,
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontWeight: FontWeight.bold,
+                                                style: GoogleFonts.outfit(
+                                                  fontWeight: FontWeight.w800,
                                                   fontSize: 14,
+                                                  color: isDark ? Colors.white : AppColors.neoBorder,
                                                 ),
-                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
                                           ],
@@ -213,18 +275,19 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen>
                                   const SizedBox(height: 10),
                                   Text(
                                     request.requestType.title,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      color: isDark ? Colors.white : AppColors.textPrimaryLight,
+                                    style: GoogleFonts.outfit(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16,
+                                      color: isDark ? Colors.white : AppColors.neoBorder,
                                     ),
                                   ),
                                   if (request.summaryText.isNotEmpty) ...[
                                     const SizedBox(height: 4),
                                     Text(
                                       request.summaryText,
-                                      style: TextStyle(
-                                        fontSize: 12,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
                                         color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
                                       ),
                                     ),
@@ -236,28 +299,55 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen>
                                       Expanded(
                                         child: Text(
                                           'Submitted ${DateFormatter.formatDateTime(request.submittedAt)}',
-                                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey[500],
+                                          ),
                                         ),
                                       ),
                                       if (isPending)
                                         TextButton(
                                           style: TextButton.styleFrom(
                                             visualDensity: VisualDensity.compact,
-                                            foregroundColor: Colors.red,
+                                            foregroundColor: AppColors.statusRejected,
                                           ),
                                           onPressed: () async {
                                             final confirm = await showDialog<bool>(
                                               context: context,
                                               builder: (ctx) => AlertDialog(
-                                                title: const Text('Cancel Request?'),
-                                                content: const Text('Are you sure you want to cancel this pending request?'),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(16),
+                                                  side: BorderSide(color: borderColor, width: 2.5),
+                                                ),
+                                                title: Text(
+                                                  'Cancel Request?',
+                                                  style: GoogleFonts.outfit(fontWeight: FontWeight.w900),
+                                                ),
+                                                content: Text(
+                                                  'Are you sure you want to cancel this pending request?',
+                                                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+                                                ),
                                                 actions: [
-                                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+                                                  TextButton(
+                                                    onPressed: () => Navigator.pop(ctx, false),
+                                                    child: Text(
+                                                      'No',
+                                                      style: GoogleFonts.outfit(fontWeight: FontWeight.w800),
+                                                    ),
+                                                  ),
                                                   ElevatedButton(
-                                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: AppColors.statusRejected,
+                                                    ),
                                                     onPressed: () => Navigator.pop(ctx, true),
-                                                    child: const Text('Yes, Cancel', style: TextStyle(color: Colors.white)),
+                                                    child: Text(
+                                                      'Yes, Cancel',
+                                                      style: GoogleFonts.outfit(
+                                                        color: Colors.white,
+                                                        fontWeight: FontWeight.w800,
+                                                      ),
+                                                    ),
                                                   ),
                                                 ],
                                               ),
@@ -267,7 +357,14 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen>
                                               await ref.read(requestsProvider.notifier).cancelRequest(request.requestId);
                                             }
                                           },
-                                          child: const Text('Cancel', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                          child: Text(
+                                            'Cancel',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w900,
+                                              color: AppColors.statusRejected,
+                                            ),
+                                          ),
                                         ),
                                     ],
                                   ),

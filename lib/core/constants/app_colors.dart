@@ -92,4 +92,21 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
+
+  // Neo-Brutalism Design System Tokens
+  static const Color neoBorder = Color(0xFF0F172A); // High-contrast solid border
+  static const Color neoBorderLight = Color(0xFF0F172A);
+  static const Color neoBorderDark = Color(0xFFF8FAFC);
+  static const Color neoShadow = Color(0xFF0F172A); // Hard zero-blur shadow
+  static const Color neoBgLight = Color(0xFFFFFDF5); // Warm retro alabaster canvas
+  static const Color neoBgDark = Color(0xFF0B0F19);
+  
+  // Neo Pop Pastels & Accents
+  static const Color neoYellow = Color(0xFFFFDE59); // Electric Sun Yellow
+  static const Color neoPink = Color(0xFFFF66C4);   // Hot Cyber Pink
+  static const Color neoCyan = Color(0xFF00F0FF);   // Vivid Electric Cyan
+  static const Color neoGreen = Color(0xFF00E676);  // Bold Neo Mint Green
+  static const Color neoPurple = Color(0xFF8C52FF); // Electric Violet
+  static const Color neoOrange = Color(0xFFFF914D); // Retro Pop Orange
+  static const Color neoIndigo = Color(0xFF4F46E5); // Pure Neo Indigo
 }

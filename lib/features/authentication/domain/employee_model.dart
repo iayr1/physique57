@@ -11,7 +11,15 @@ class EmployeeModel {
   final bool isActive;
   final String status; // 'active' or 'deactivated'
   final Map<String, dynamic> leaveBalances;
+  final Map<String, dynamic> healthProfile;
   final double baseSalary;
+  final double hraPercentage;
+  final double allowancePercentage;
+  final double pfPercentage;
+  final double overtimeRate;
+  final double monthlyIncentive;
+  final String payStatus;
+  final String payCycle;
   final String phoneNumber;
   final String joiningDate;
 
@@ -28,7 +36,15 @@ class EmployeeModel {
     this.isActive = true,
     this.status = 'active',
     this.leaveBalances = const {},
+    this.healthProfile = const {},
     this.baseSalary = 65000.0,
+    this.hraPercentage = 40.0,
+    this.allowancePercentage = 15.0,
+    this.pfPercentage = 8.0,
+    this.overtimeRate = 500.0,
+    this.monthlyIncentive = 5000.0,
+    this.payStatus = 'Processed',
+    this.payCycle = 'Monthly',
     this.phoneNumber = '',
     this.joiningDate = '',
   });
@@ -37,6 +53,22 @@ class EmployeeModel {
       role.toLowerCase().trim() == 'admin' ||
       designation.toLowerCase().contains('administrator') ||
       designation.toLowerCase().contains('admin');
+
+  // Dynamic Compensation Calculations
+  double get hraAmount => (baseSalary * (hraPercentage / 100.0)).roundToDouble();
+  double get allowanceAmount => (baseSalary * (allowancePercentage / 100.0)).roundToDouble();
+  double get pfDeduction => (baseSalary * (pfPercentage / 100.0)).roundToDouble();
+  double get grossSalary => baseSalary + hraAmount + allowanceAmount + monthlyIncentive;
+  double get netTakeHomePay => grossSalary - pfDeduction;
+
+  // Dynamic Health & Insurance Profile Getters
+  String get mediclaimId => healthProfile['mediclaimId'] as String? ?? 'PHY57-MED-${1000 + email.hashCode.abs() % 8999}';
+  double get coverageAmount => (healthProfile['coverageAmount'] as num?)?.toDouble() ?? 500000.0;
+  String get bloodGroup => healthProfile['bloodGroup'] as String? ?? 'O+';
+  String get emergencyContactName => healthProfile['emergencyContactName'] as String? ?? (reportingManagerName.isNotEmpty ? reportingManagerName : 'Family Contact');
+  String get emergencyContactPhone => healthProfile['emergencyContactPhone'] as String? ?? '+91 98765 43210';
+  double get wellnessAllowance => (healthProfile['wellnessAllowance'] as num?)?.toDouble() ?? 15000.0;
+  bool get healthCheckupDone => healthProfile['healthCheckupDone'] as bool? ?? true;
 
   static Map<String, dynamic> defaultLeaveBalances() => {
         'Annual / Paid Leave': {'total': 18, 'used': 0, 'remaining': 18},
@@ -98,7 +130,15 @@ class EmployeeModel {
     bool? isActive,
     String? status,
     Map<String, dynamic>? leaveBalances,
+    Map<String, dynamic>? healthProfile,
     double? baseSalary,
+    double? hraPercentage,
+    double? allowancePercentage,
+    double? pfPercentage,
+    double? overtimeRate,
+    double? monthlyIncentive,
+    String? payStatus,
+    String? payCycle,
     String? phoneNumber,
     String? joiningDate,
   }) {
@@ -115,7 +155,15 @@ class EmployeeModel {
       isActive: isActive ?? this.isActive,
       status: status ?? this.status,
       leaveBalances: leaveBalances ?? this.leaveBalances,
+      healthProfile: healthProfile ?? this.healthProfile,
       baseSalary: baseSalary ?? this.baseSalary,
+      hraPercentage: hraPercentage ?? this.hraPercentage,
+      allowancePercentage: allowancePercentage ?? this.allowancePercentage,
+      pfPercentage: pfPercentage ?? this.pfPercentage,
+      overtimeRate: overtimeRate ?? this.overtimeRate,
+      monthlyIncentive: monthlyIncentive ?? this.monthlyIncentive,
+      payStatus: payStatus ?? this.payStatus,
+      payCycle: payCycle ?? this.payCycle,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       joiningDate: joiningDate ?? this.joiningDate,
     );
@@ -132,6 +180,11 @@ class EmployeeModel {
       balances = defaultLeaveBalances();
     }
 
+    Map<String, dynamic> hpMap = {};
+    if (json['healthProfile'] != null && json['healthProfile'] is Map) {
+      hpMap = Map<String, dynamic>.from(json['healthProfile'] as Map);
+    }
+
     final rawIsActive = json['isActive'];
     final bool active = rawIsActive is bool ? rawIsActive : (json['status'] != 'deactivated');
 
@@ -142,20 +195,33 @@ class EmployeeModel {
       salary = (json['salary'] as num).toDouble();
     }
 
+    final rawMgrName = json['reportingManagerName'] as String? ?? '';
+    final rawMgrEmail = json['reportingManagerEmail'] as String? ?? '';
+    final mgrName = rawMgrName.trim().isNotEmpty ? rawMgrName.trim() : 'Mayur Chaudhari';
+    final mgrEmail = rawMgrEmail.trim().isNotEmpty ? rawMgrEmail.trim() : 'mayurchaudhari@gmail.com';
+
     return EmployeeModel(
       id: json['id'] as String? ?? 'EMP-${1000 + email.hashCode.abs() % 8000}',
       name: json['name'] as String? ?? (email.isNotEmpty ? email.split('@').first : 'Employee'),
       email: email,
       department: json['department'] as String? ?? 'Physique 57 Operations',
       designation: json['designation'] as String? ?? 'Team Specialist',
-      reportingManagerName: json['reportingManagerName'] as String? ?? 'Management Board',
-      reportingManagerEmail: json['reportingManagerEmail'] as String? ?? '',
+      reportingManagerName: mgrName,
+      reportingManagerEmail: mgrEmail,
       photoUrl: json['photoUrl'] as String? ?? '',
       role: role,
       isActive: active,
       status: json['status'] as String? ?? (active ? 'active' : 'deactivated'),
       leaveBalances: balances,
+      healthProfile: hpMap,
       baseSalary: salary,
+      hraPercentage: (json['hraPercentage'] as num?)?.toDouble() ?? 40.0,
+      allowancePercentage: (json['allowancePercentage'] as num?)?.toDouble() ?? 15.0,
+      pfPercentage: (json['pfPercentage'] as num?)?.toDouble() ?? 8.0,
+      overtimeRate: (json['overtimeRate'] as num?)?.toDouble() ?? 500.0,
+      monthlyIncentive: (json['monthlyIncentive'] as num?)?.toDouble() ?? 5000.0,
+      payStatus: json['payStatus'] as String? ?? 'Processed',
+      payCycle: json['payCycle'] as String? ?? 'Monthly',
       phoneNumber: json['phoneNumber'] as String? ?? '',
       joiningDate: json['joiningDate'] as String? ?? '',
     );
@@ -175,7 +241,15 @@ class EmployeeModel {
       'isActive': isActive,
       'status': status,
       'leaveBalances': leaveBalances.isNotEmpty ? leaveBalances : defaultLeaveBalances(),
+      'healthProfile': healthProfile,
       'baseSalary': baseSalary,
+      'hraPercentage': hraPercentage,
+      'allowancePercentage': allowancePercentage,
+      'pfPercentage': pfPercentage,
+      'overtimeRate': overtimeRate,
+      'monthlyIncentive': monthlyIncentive,
+      'payStatus': payStatus,
+      'payCycle': payCycle,
       'phoneNumber': phoneNumber,
       'joiningDate': joiningDate,
     };

@@ -22,27 +22,27 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-xl' 
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity animate-fade-in"
+        className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-fade-in"
         onClick={onClose}
       />
 
       {/* Modal Dialog */}
       <div
-        className={`relative w-full ${maxWidth} bg-white rounded-2xl shadow-soft-lg border border-slate-200/80 overflow-hidden transform transition-all z-10`}
+        className={`relative w-full ${maxWidth} bg-white rounded-2xl shadow-brutal-lg border-3 border-neo-border overflow-hidden transform transition-all z-10`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+        <div className="flex items-center justify-between px-6 py-4 border-b-3 border-neo-border bg-neo-yellow">
+          <h3 className="text-lg font-black text-neo-border font-display">{title}</h3>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            className="p-1.5 text-neo-border bg-white rounded-lg border-2 border-neo-border hover:bg-neo-pink transition-colors cursor-pointer shadow-brutal-sm"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 stroke-[2.5]" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+        <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto bg-[#FFFDF5]">
           {children}
         </div>
       </div>

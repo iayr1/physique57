@@ -11,7 +11,10 @@ import {
   UserPlus,
   RefreshCw,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Banknote,
+  Calendar,
+  HeartPulse
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
@@ -33,6 +36,100 @@ export const EmployeesView = ({ employees = [], setTab }) => {
   // Delete Confirm State
   const [deletingEmployee, setDeletingEmployee] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Payslip Management State (6 Months)
+  const [payslipModalEmp, setPayslipModalEmp] = useState(null);
+  const [payslipFormData, setPayslipFormData] = useState({
+    monthYear: 'August 2026',
+    baseSalary: 65000,
+    hraAmount: 26000,
+    allowanceAmount: 9750,
+    monthlyIncentive: 5000,
+    overtimePay: 0,
+    pfDeduction: 5200,
+    taxDeduction: 0,
+  });
+  const [isSavingPayslip, setIsSavingPayslip] = useState(false);
+
+  const monthsList = Array.from({ length: 6 }, (_, i) => {
+    const finalDate = new Date();
+    finalDate.setMonth(finalDate.getMonth() - i);
+    return `${finalDate.toLocaleString('default', { month: 'long' })} ${finalDate.getFullYear()}`;
+  });
+
+  const handleOpenPayslipModal = (emp) => {
+    const base = emp.baseSalary || 65000;
+    setPayslipModalEmp(emp);
+    setPayslipFormData({
+      monthYear: 'August 2026',
+      baseSalary: base,
+      hraAmount: Math.round(base * 0.40),
+      allowanceAmount: Math.round(base * 0.15),
+      monthlyIncentive: 5000,
+      overtimePay: 0,
+      pfDeduction: Math.round(base * 0.08),
+      taxDeduction: 0,
+    });
+  };
+
+  const handleSavePayslip = async (e) => {
+    e.preventDefault();
+    if (!payslipModalEmp) return;
+    setIsSavingPayslip(true);
+
+    const empEmail = payslipModalEmp.email || payslipModalEmp.id;
+    const empName = payslipModalEmp.name || 'Employee';
+    const [mName, yStr] = payslipFormData.monthYear.split(' ');
+    const yVal = parseInt(yStr, 10) || 2026;
+    const payslipId = `PAY-${yVal}-${mName}-${empEmail}`;
+
+    const baseVal = parseFloat(payslipFormData.baseSalary) || 0;
+    const hraVal = parseFloat(payslipFormData.hraAmount) || 0;
+    const allowVal = parseFloat(payslipFormData.allowanceAmount) || 0;
+    const incVal = parseFloat(payslipFormData.monthlyIncentive) || 0;
+    const otVal = parseFloat(payslipFormData.overtimePay) || 0;
+    const pfVal = parseFloat(payslipFormData.pfDeduction) || 0;
+    const taxVal = parseFloat(payslipFormData.taxDeduction) || 0;
+
+    const grossVal = baseVal + hraVal + allowVal + incVal + otVal;
+    const netVal = grossVal - pfVal - taxVal;
+
+    try {
+      const payslipObj = {
+        id: payslipId,
+        employeeEmail: empEmail,
+        employeeName: empName,
+        department: payslipModalEmp.department || 'Operations',
+        designation: payslipModalEmp.designation || 'Staff Member',
+        month: mName,
+        year: yVal,
+        monthYearStr: payslipFormData.monthYear,
+        baseSalary: baseVal,
+        hraAmount: hraVal,
+        allowanceAmount: allowVal,
+        monthlyIncentive: incVal,
+        overtimePay: otVal,
+        grossSalary: grossVal,
+        pfDeduction: pfVal,
+        taxDeduction: taxVal,
+        netTakeHomePay: netVal,
+        payStatus: 'Paid',
+        paymentDate: new Date().toISOString().split('T')[0],
+        transactionId: `TXN-P57-${100000 + Math.floor(Math.random() * 899999)}`,
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(doc(db, 'employees', empEmail, 'payslips', payslipId), payslipObj, { merge: true });
+      await setDoc(doc(db, 'payslips', payslipId), payslipObj, { merge: true });
+
+      addToast(`Payslip for ${payslipFormData.monthYear} saved to Firebase!`, 'success');
+      setPayslipModalEmp(null);
+    } catch (err) {
+      addToast(`Failed to save payslip: ${err.message}`, 'error');
+    } finally {
+      setIsSavingPayslip(false);
+    }
+  };
 
   // Filtered Employees
   const departments = ['All', ...new Set(employees.map((e) => e.department || 'General').filter(Boolean))];
@@ -319,6 +416,27 @@ export const EmployeesView = ({ employees = [], setTab }) => {
                       <td className="py-4 px-6 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
+                            onClick={() => handleOpenPayslipModal(emp)}
+                            className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                            title="Manage 6-Month Payslips & Firebase Data"
+                          >
+                            <Banknote className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setTab(9)}
+                            className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                            title="Manage Leave Quotas & Policy"
+                          >
+                            <Calendar className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setTab(10)}
+                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Manage Health & Insurance Card"
+                          >
+                            <HeartPulse className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => handleOpenEdit(emp)}
                             className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             title="Edit Profile & Quotas"
@@ -411,13 +529,50 @@ export const EmployeesView = ({ employees = [], setTab }) => {
               </select>
             </div>
 
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>Assign Reporting Manager</span>
+                <span className="text-[10px] text-blue-600 font-semibold">Default: Mayur Chaudhari</span>
+              </label>
+              <select
+                value={editFormData.reportingManagerEmail || 'mayurchaudhari@gmail.com'}
+                onChange={(e) => {
+                  const email = e.target.value;
+                  let name = 'Mayur Chaudhari';
+                  if (email === 'mayurchaudhari@gmail.com') {
+                    name = 'Mayur Chaudhari';
+                  } else {
+                    const emp = employees.find(x => x.email === email);
+                    if (emp) name = emp.name;
+                  }
+                  setEditFormData({
+                    ...editFormData,
+                    reportingManagerEmail: email,
+                    reportingManagerName: name,
+                  });
+                }}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white mb-2"
+              >
+                <option value="mayurchaudhari@gmail.com">
+                  Mayur Chaudhari (Default Manager - mayurchaudhari@gmail.com)
+                </option>
+                {employees
+                  .filter(emp => emp.email && emp.email.toLowerCase() !== 'mayurchaudhari@gmail.com')
+                  .map(emp => (
+                    <option key={emp.email} value={emp.email}>
+                      {emp.name || emp.email} ({emp.email})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Reporting Manager Name
               </label>
               <input
                 type="text"
-                value={editFormData.reportingManagerName || ''}
+                value={editFormData.reportingManagerName || 'Mayur Chaudhari'}
                 onChange={(e) => setEditFormData({ ...editFormData, reportingManagerName: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
               />
@@ -429,7 +584,7 @@ export const EmployeesView = ({ employees = [], setTab }) => {
               </label>
               <input
                 type="email"
-                value={editFormData.reportingManagerEmail || ''}
+                value={editFormData.reportingManagerEmail || 'mayurchaudhari@gmail.com'}
                 onChange={(e) => setEditFormData({ ...editFormData, reportingManagerEmail: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white"
               />
@@ -534,6 +689,169 @@ export const EmployeesView = ({ employees = [], setTab }) => {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* 6-Month Payslip Entry Modal */}
+      <Modal
+        isOpen={!!payslipModalEmp}
+        onClose={() => setPayslipModalEmp(null)}
+        title={`Manage Payslips: ${payslipModalEmp?.name || ''}`}
+      >
+        <form onSubmit={handleSavePayslip} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Select Target Month (Last 6 Months)
+            </label>
+            <select
+              value={payslipFormData.monthYear}
+              onChange={(e) => setPayslipFormData({ ...payslipFormData, monthYear: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+            >
+              {monthsList.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Basic Salary (₹)
+              </label>
+              <input
+                type="number"
+                value={payslipFormData.baseSalary}
+                onChange={(e) => {
+                  const b = parseFloat(e.target.value) || 0;
+                  setPayslipFormData({
+                    ...payslipFormData,
+                    baseSalary: b,
+                    hraAmount: Math.round(b * 0.40),
+                    allowanceAmount: Math.round(b * 0.15),
+                    pfDeduction: Math.round(b * 0.08),
+                  });
+                }}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                HRA Amount (₹)
+              </label>
+              <input
+                type="number"
+                value={payslipFormData.hraAmount}
+                onChange={(e) => setPayslipFormData({ ...payslipFormData, hraAmount: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Allowances (₹)
+              </label>
+              <input
+                type="number"
+                value={payslipFormData.allowanceAmount}
+                onChange={(e) => setPayslipFormData({ ...payslipFormData, allowanceAmount: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Monthly Incentive (₹)
+              </label>
+              <input
+                type="number"
+                value={payslipFormData.monthlyIncentive}
+                onChange={(e) => setPayslipFormData({ ...payslipFormData, monthlyIncentive: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Overtime Pay (₹)
+              </label>
+              <input
+                type="number"
+                value={payslipFormData.overtimePay}
+                onChange={(e) => setPayslipFormData({ ...payslipFormData, overtimePay: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                PF Deduction (₹)
+              </label>
+              <input
+                type="number"
+                value={payslipFormData.pfDeduction}
+                onChange={(e) => setPayslipFormData({ ...payslipFormData, pfDeduction: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              TDS / Income Tax Deduction (₹)
+            </label>
+            <input
+              type="number"
+              value={payslipFormData.taxDeduction}
+              onChange={(e) => setPayslipFormData({ ...payslipFormData, taxDeduction: parseFloat(e.target.value) || 0 })}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+            />
+          </div>
+
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs">
+            <div>
+              <p className="font-bold text-emerald-900">Gross Monthly Earnings</p>
+              <p className="text-emerald-700 font-extrabold text-sm">
+                ₹{(
+                  (parseFloat(payslipFormData.baseSalary) || 0) +
+                  (parseFloat(payslipFormData.hraAmount) || 0) +
+                  (parseFloat(payslipFormData.allowanceAmount) || 0) +
+                  (parseFloat(payslipFormData.monthlyIncentive) || 0) +
+                  (parseFloat(payslipFormData.overtimePay) || 0)
+                ).toLocaleString('en-IN')}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="font-bold text-emerald-900">Net Take-Home Pay</p>
+              <p className="text-emerald-700 font-black text-base">
+                ₹{(
+                  (parseFloat(payslipFormData.baseSalary) || 0) +
+                  (parseFloat(payslipFormData.hraAmount) || 0) +
+                  (parseFloat(payslipFormData.allowanceAmount) || 0) +
+                  (parseFloat(payslipFormData.monthlyIncentive) || 0) +
+                  (parseFloat(payslipFormData.overtimePay) || 0) -
+                  (parseFloat(payslipFormData.pfDeduction) || 0) -
+                  (parseFloat(payslipFormData.taxDeduction) || 0)
+                ).toLocaleString('en-IN')}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setPayslipModalEmp(null)}
+              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSavingPayslip}
+              className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs disabled:opacity-60 flex items-center gap-1.5"
+            >
+              <Banknote className="w-3.5 h-3.5" />
+              {isSavingPayslip ? 'Saving to Firebase...' : 'Save Payslip Record'}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

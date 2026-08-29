@@ -37,6 +37,18 @@ class TaskRepository {
     } catch (_) {}
   }
 
+  Stream<List<TaskModel>> watchEmployeeTasks(String email) {
+    final normalizedEmail = email.trim().toLowerCase();
+    return _collection.snapshots().map((snapshot) {
+      final tasks = snapshot.docs
+          .map((doc) => TaskModel.fromJson(doc.data()))
+          .where((t) => t.assignedToEmail.trim().toLowerCase() == normalizedEmail)
+          .toList();
+      tasks.sort((a, b) => b.createdDate.compareTo(a.createdDate));
+      return tasks;
+    });
+  }
+
   Future<List<TaskModel>> getEmployeeTasks(String email) async {
     try {
       final snapshot = await _collection.get();
@@ -50,6 +62,14 @@ class TaskRepository {
     } catch (_) {
       return [];
     }
+  }
+
+  Stream<List<TaskModel>> watchAllTasks() {
+    return _collection.snapshots().map((snapshot) {
+      final tasks = snapshot.docs.map((doc) => TaskModel.fromJson(doc.data())).toList();
+      tasks.sort((a, b) => b.createdDate.compareTo(a.createdDate));
+      return tasks;
+    });
   }
 
   Future<List<TaskModel>> getAllTasks() async {

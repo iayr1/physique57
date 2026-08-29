@@ -1,10 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-import '../core/constants/app_colors.dart';
+import '../core/widgets/lottie_bottom_nav_bar.dart';
 import '../features/authentication/presentation/login_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/admin/presentation/admin_dashboard_screen.dart';
@@ -33,19 +33,20 @@ final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(d
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
   final user = authState.valueOrNull;
+  final firebaseUser = FirebaseAuth.instance.currentUser;
+  final isLoggedIn = user != null || firebaseUser != null;
   final hasCompletedOnboarding = ref.watch(hasCompletedOnboardingProvider);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/splash',
     redirect: (context, state) {
-      final isLoggedIn = user != null;
       final isLoggingIn = state.matchedLocation == '/login';
       final isSplash = state.matchedLocation == '/splash';
       final isOnboarding = state.matchedLocation == '/onboarding';
       final isAdminRoute = state.matchedLocation == '/admin';
 
-      // Let splash screen flow bypass routing redirects
+      // Always let splash screen complete its transition naturally
       if (isSplash) return null;
 
       if (!hasCompletedOnboarding) {
@@ -55,7 +56,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // If onboarding is completed but user is not logged in
+      // If user is not logged in
       if (!isLoggedIn) {
         if (isOnboarding || isAdminRoute) return '/login';
         if (!isLoggingIn) return '/login';
@@ -65,13 +66,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       // If user is logged in
       if (isLoggedIn) {
         if (isLoggingIn || isOnboarding) {
-          if (kIsWeb && user.isAdmin) {
+          if (kIsWeb && (user?.isAdmin == true)) {
             return '/admin';
           }
           return '/';
         }
         // Protect admin route from non-admins
-        if (isAdminRoute && !user.isAdmin) {
+        if (isAdminRoute && user != null && !user.isAdmin) {
           return '/';
         }
       }
@@ -191,8 +192,8 @@ class ScaffoldWithBottomNavBar extends ConsumerWidget {
 
   int _calculateSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).matchedLocation;
-    if (location.startsWith('/categories')) return 1;
-    if (location.startsWith('/my-requests')) return 2;
+    if (location.startsWith('/my-requests')) return 1;
+    if (location.startsWith('/categories')) return 2;
     if (location.startsWith('/notifications')) return 3;
     if (location.startsWith('/profile')) return 4;
     return 0;
@@ -204,10 +205,10 @@ class ScaffoldWithBottomNavBar extends ConsumerWidget {
         context.go('/');
         break;
       case 1:
-        context.go('/categories');
+        context.go('/my-requests');
         break;
       case 2:
-        context.go('/my-requests');
+        context.go('/categories');
         break;
       case 3:
         context.go('/notifications');
@@ -222,123 +223,13 @@ class ScaffoldWithBottomNavBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final unreadCount = ref.watch(unreadNotificationCountProvider);
     final selectedIndex = _calculateSelectedIndex(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: child,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceDark : Colors.white,
-          border: Border(
-            top: BorderSide(
-              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-              width: 1,
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 16,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            height: 70,
-            backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
-            indicatorColor: AppColors.primary.withValues(alpha: 0.12),
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            labelTextStyle: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.selected)) {
-                return GoogleFonts.outfit(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: isDark ? Colors.white : AppColors.primary,
-                );
-              }
-              return GoogleFonts.plusJakartaSans(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.textSecondaryDark : const Color(0xFF64748B),
-              );
-            }),
-            iconTheme: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.selected)) {
-                return IconThemeData(
-                  size: 22,
-                  color: isDark ? Colors.white : AppColors.primary,
-                );
-              }
-              return IconThemeData(
-                size: 22,
-                color: isDark ? AppColors.textSecondaryDark : const Color(0xFF64748B),
-              );
-            }),
-          ),
-          child: NavigationBar(
-            selectedIndex: selectedIndex,
-            onDestinationSelected: (idx) => _onItemTapped(idx, context),
-            elevation: 0,
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    gradient: AppColors.primaryGradient,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
-                ),
-                label: 'New',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long_rounded),
-                label: 'Requests',
-              ),
-              NavigationDestination(
-                icon: Stack(
-                  children: [
-                    const Icon(Icons.notifications_outlined),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(
-                            color: AppColors.statusRejected,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(minWidth: 10, minHeight: 10),
-                        ),
-                      ),
-                  ],
-                ),
-                selectedIcon: const Icon(Icons.notifications_rounded),
-                label: 'Alerts',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded),
-                selectedIcon: Icon(Icons.person_rounded),
-                label: 'Profile',
-              ),
-            ],
-          ),
-        ),
+      bottomNavigationBar: LottieBottomNavBar(
+        selectedIndex: selectedIndex,
+        onItemTapped: (idx) => _onItemTapped(idx, context),
+        unreadCount: unreadCount,
       ),
     );
   }

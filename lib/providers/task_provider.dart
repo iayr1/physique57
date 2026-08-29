@@ -19,11 +19,16 @@ class EmployeeTasksNotifier extends AsyncNotifier<List<TaskModel>> {
     _repository = ref.watch(taskRepositoryProvider);
     final user = ref.watch(authProvider).value;
     if (user == null) return [];
+
+    // Listen to real-time task stream
+    _repository.watchEmployeeTasks(user.email).listen((tasks) {
+      state = AsyncValue.data(tasks);
+    });
+
     return _repository.getEmployeeTasks(user.email);
   }
 
   Future<void> reloadTasks() async {
-    state = const AsyncValue.loading();
     try {
       final user = ref.read(authProvider).value;
       if (user == null) {
@@ -39,7 +44,13 @@ class EmployeeTasksNotifier extends AsyncNotifier<List<TaskModel>> {
 
   Future<void> updateTaskStatus(String taskId, String status) async {
     try {
-      await _repository.updateTaskStatus(taskId, status);
+      final user = ref.read(authProvider).value;
+      await _repository.updateTaskStatus(
+        taskId,
+        status,
+        employeeName: user?.name,
+        employeeEmail: user?.email,
+      );
       await reloadTasks();
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -57,6 +68,9 @@ class AllTasksNotifier extends AsyncNotifier<List<TaskModel>> {
   @override
   Future<List<TaskModel>> build() async {
     _repository = ref.watch(taskRepositoryProvider);
+    _repository.watchAllTasks().listen((tasks) {
+      state = AsyncValue.data(tasks);
+    });
     return _repository.getAllTasks();
   }
 

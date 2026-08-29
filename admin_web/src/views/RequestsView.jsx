@@ -225,7 +225,7 @@ export const RequestsView = ({
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-600 line-clamp-2 mt-1">
+                    <p className="text-xs text-slate-600 mt-1">
                       <strong>Details:</strong>{' '}
                       {reqData.reason ||
                         reqData.description ||
@@ -311,7 +311,7 @@ export const RequestsView = ({
                   <span className="font-semibold text-slate-500 capitalize">
                     {key.replace(/([A-Z])/g, ' $1')}:
                   </span>
-                  <span className="font-mono text-slate-900 font-bold text-right max-w-xs truncate">
+                  <span className="font-mono text-slate-900 font-bold text-right">
                     {typeof val === 'object' && val !== null
                       ? JSON.stringify(val)
                       : String(val || '—')}

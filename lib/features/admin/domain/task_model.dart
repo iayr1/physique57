@@ -24,24 +24,34 @@ class TaskModel {
   });
 
   factory TaskModel.fromJson(Map<String, dynamic> json) {
+    DateTime parseDate(dynamic field, {DateTime? fallback}) {
+      if (field == null) return fallback ?? DateTime.now();
+      if (field is Timestamp) return field.toDate();
+      if (field is DateTime) return field;
+      final parsed = DateTime.tryParse(field.toString());
+      return parsed ?? (fallback ?? DateTime.now());
+    }
+
+    // Check createdDate then createdAt
+    final created = parseDate(json['createdDate'] ?? json['createdAt']);
+
+    // Check dueDate then fallback to end of day if present, or created date + 7 days
+    final due = json['dueDate'] != null
+        ? parseDate(json['dueDate'], fallback: created.add(const Duration(days: 7)))
+        : created.add(const Duration(days: 7));
+
     return TaskModel(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
       description: json['description'] as String? ?? '',
       assignedToEmail: json['assignedToEmail'] as String? ?? '',
       assignedToName: json['assignedToName'] as String? ?? '',
-      assignedByEmail: json['assignedByEmail'] as String? ?? '',
-      dueDate: json['dueDate'] != null
-          ? (json['dueDate'] is Timestamp
-              ? (json['dueDate'] as Timestamp).toDate()
-              : DateTime.tryParse(json['dueDate'].toString()) ?? DateTime.now())
-          : DateTime.now(),
+      assignedByEmail: (json['assignedByEmail'] as String?)?.isNotEmpty == true
+          ? json['assignedByEmail'] as String
+          : (json['assignedBy'] as String? ?? ''),
+      dueDate: due,
       status: json['status'] as String? ?? 'Pending',
-      createdDate: json['createdDate'] != null
-          ? (json['createdDate'] is Timestamp
-              ? (json['createdDate'] as Timestamp).toDate()
-              : DateTime.tryParse(json['createdDate'].toString()) ?? DateTime.now())
-          : DateTime.now(),
+      createdDate: created,
     );
   }
 
@@ -53,9 +63,11 @@ class TaskModel {
       'assignedToEmail': assignedToEmail,
       'assignedToName': assignedToName,
       'assignedByEmail': assignedByEmail,
+      'assignedBy': assignedByEmail,
       'dueDate': Timestamp.fromDate(dueDate),
       'status': status,
       'createdDate': Timestamp.fromDate(createdDate),
+      'createdAt': Timestamp.fromDate(createdDate),
     };
   }
 
