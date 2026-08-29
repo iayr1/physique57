@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,9 +14,16 @@ class AuthNotifier extends StateNotifier<AsyncValue<EmployeeModel?>> {
   final IAuthRepository _authRepository;
   FirebaseAuth get _firebaseAuth => FirebaseAuth.instance;
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  StreamSubscription<DocumentSnapshot>? _profileSubscription;
 
   AuthNotifier(this._authRepository) : super(const AsyncValue.loading()) {
     checkCurrentUser();
+  }
+
+  @override
+  void dispose() {
+    _profileSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> checkCurrentUser() async {
@@ -23,6 +31,21 @@ class AuthNotifier extends StateNotifier<AsyncValue<EmployeeModel?>> {
     try {
       final user = await _authRepository.getCurrentUser();
       state = AsyncValue.data(user);
+
+      // Subscribe to real-time Firestore updates for leave balance sync
+      final currentUser = _firebaseAuth.currentUser;
+      if (currentUser?.email != null) {
+        _profileSubscription?.cancel();
+        _profileSubscription = _firestore
+            .collection('employees')
+            .doc(currentUser!.email!.trim().toLowerCase())
+            .snapshots()
+            .listen((docSnap) {
+          if (docSnap.exists && docSnap.data() != null) {
+            state = AsyncValue.data(EmployeeModel.fromJson(docSnap.data()!));
+          }
+        });
+      }
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }

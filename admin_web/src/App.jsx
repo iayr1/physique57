@@ -8,6 +8,9 @@ import {
   updateDoc,
   getDoc,
   setDoc,
+  query,
+  where,
+  getDocs,
   serverTimestamp,
 } from 'firebase/firestore';
 import { useToast } from './components/Toast';
@@ -181,15 +184,24 @@ export const App = () => {
   const handleApproveRequest = async (req) => {
     try {
       const reqData = req.requestData || {};
-      const reqType = req.requestType || '';
-      const employeeEmail = req.employeeEmail;
-      const days = parseInt(reqData.numberOfDays || 1, 10);
-      const leaveType = reqData.leaveType || 'Annual / Paid Leave';
+      const reqType = (req.requestType || '').toLowerCase();
+      const employeeEmail = (req.employeeEmail || '').toLowerCase().trim();
+      const days = parseInt(reqData.numberOfDays || reqData.days || 1, 10);
+      const leaveType = reqData.leaveType || reqData.category || 'Annual / Paid Leave';
 
       // 1. If Leave Request, deduct quota from employee profile
-      if (reqType === 'leave' && employeeEmail) {
-        const empRef = doc(db, 'employees', employeeEmail);
-        const empSnap = await getDoc(empRef);
+      if ((reqType.includes('leave') || reqType === 'leave') && employeeEmail) {
+        let empRef = doc(db, 'employees', employeeEmail);
+        let empSnap = await getDoc(empRef);
+
+        // Fallback search by email field if document key is not email
+        if (!empSnap.exists()) {
+          const qSnap = await getDocs(query(collection(db, 'employees'), where('email', '==', employeeEmail)));
+          if (!qSnap.empty) {
+            empSnap = qSnap.docs[0];
+            empRef = doc(db, 'employees', empSnap.id);
+          }
+        }
 
         if (empSnap.exists()) {
           const empData = empSnap.data();
@@ -197,16 +209,22 @@ export const App = () => {
             'Annual / Paid Leave': { total: 18, used: 0, remaining: 18 },
             'Casual Leave': { total: 10, used: 0, remaining: 10 },
             'Sick Leave': { total: 10, used: 0, remaining: 10 },
+            'Maternity / Paternity Leave': { total: 90, used: 0, remaining: 90 },
+            'Bereavement Leave': { total: 5, used: 0, remaining: 5 },
+            'Unpaid Leave': { total: 0, used: 0, remaining: 0 },
           };
 
-          // Find matching key
+          // Find matching leave category key
           let balanceKey = 'Annual / Paid Leave';
-          if (leaveType.toLowerCase().includes('sick')) balanceKey = 'Sick Leave';
-          if (leaveType.toLowerCase().includes('casual')) balanceKey = 'Casual Leave';
+          const ltLower = leaveType.toLowerCase();
+          if (ltLower.includes('sick')) balanceKey = 'Sick Leave';
+          else if (ltLower.includes('casual')) balanceKey = 'Casual Leave';
+          else if (ltLower.includes('maternity') || ltLower.includes('paternity')) balanceKey = 'Maternity / Paternity Leave';
+          else if (ltLower.includes('bereavement')) balanceKey = 'Bereavement Leave';
 
           const currentQuota = balances[balanceKey] || { total: 18, used: 0, remaining: 18 };
-          const newRemaining = Math.max(0, currentQuota.remaining - days);
-          const newUsed = currentQuota.used + days;
+          const newUsed = (currentQuota.used || 0) + days;
+          const newRemaining = Math.max(0, (currentQuota.total || 18) - newUsed);
 
           balances[balanceKey] = {
             ...currentQuota,

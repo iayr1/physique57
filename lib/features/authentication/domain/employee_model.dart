@@ -188,12 +188,13 @@ class EmployeeModel {
     final rawIsActive = json['isActive'];
     final bool active = rawIsActive is bool ? rawIsActive : (json['status'] != 'deactivated');
 
-    double salary = 65000.0;
-    if (json['baseSalary'] != null) {
-      salary = (json['baseSalary'] as num).toDouble();
-    } else if (json['salary'] != null) {
-      salary = (json['salary'] as num).toDouble();
+    double parseDouble(dynamic val, double fallback) {
+      if (val == null) return fallback;
+      if (val is num) return val.toDouble();
+      return double.tryParse(val.toString()) ?? fallback;
     }
+
+    double salary = parseDouble(json['baseSalary'] ?? json['salary'], 65000.0);
 
     final rawMgrName = json['reportingManagerName'] as String? ?? '';
     final rawMgrEmail = json['reportingManagerEmail'] as String? ?? '';
@@ -215,11 +216,11 @@ class EmployeeModel {
       leaveBalances: balances,
       healthProfile: hpMap,
       baseSalary: salary,
-      hraPercentage: (json['hraPercentage'] as num?)?.toDouble() ?? 40.0,
-      allowancePercentage: (json['allowancePercentage'] as num?)?.toDouble() ?? 15.0,
-      pfPercentage: (json['pfPercentage'] as num?)?.toDouble() ?? 8.0,
-      overtimeRate: (json['overtimeRate'] as num?)?.toDouble() ?? 500.0,
-      monthlyIncentive: (json['monthlyIncentive'] as num?)?.toDouble() ?? 5000.0,
+      hraPercentage: parseDouble(json['hraPercentage'], 40.0),
+      allowancePercentage: parseDouble(json['allowancePercentage'], 15.0),
+      pfPercentage: parseDouble(json['pfPercentage'], 8.0),
+      overtimeRate: parseDouble(json['overtimeRate'], 500.0),
+      monthlyIncentive: parseDouble(json['monthlyIncentive'], 5000.0),
       payStatus: json['payStatus'] as String? ?? 'Processed',
       payCycle: json['payCycle'] as String? ?? 'Monthly',
       phoneNumber: json['phoneNumber'] as String? ?? '',

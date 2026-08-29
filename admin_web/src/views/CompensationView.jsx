@@ -18,7 +18,7 @@ import {
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { db } from '../firebase/config';
-import { doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, getDoc, getDocs, query, where, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
 
@@ -124,11 +124,28 @@ export const CompensationView = ({ employees = [] }) => {
     if (!editingEmployee) return;
     setIsUpdating(true);
 
-    const docId = editingEmployee.email || editingEmployee.id;
+    const targetEmail = (editingEmployee.email || '').toLowerCase().trim();
     const adminEmail = currentUser?.email || 'admin@physique57.com';
 
     try {
-      await updateDoc(doc(db, 'employees', docId), {
+      let empRef = doc(db, 'employees', targetEmail);
+      let empSnap = await getDoc(empRef);
+
+      if (!empSnap.exists()) {
+        const qSnap = await getDocs(query(collection(db, 'employees'), where('email', '==', targetEmail)));
+        if (!qSnap.empty) {
+          empSnap = qSnap.docs[0];
+          empRef = doc(db, 'employees', empSnap.id);
+        } else if (editingEmployee.id) {
+          const idRef = doc(db, 'employees', editingEmployee.id);
+          const idSnap = await getDoc(idRef);
+          if (idSnap.exists()) {
+            empRef = idRef;
+          }
+        }
+      }
+
+      await updateDoc(empRef, {
         baseSalary: Number(compForm.baseSalary),
         hraPercentage: Number(compForm.hraPercentage),
         allowancePercentage: Number(compForm.allowancePercentage),
@@ -139,6 +156,38 @@ export const CompensationView = ({ employees = [] }) => {
         payCycle: compForm.payCycle,
         updatedAt: serverTimestamp(),
       });
+
+      // Audit Log
+      const auditId = `AUD-${Date.now()}`;
+      await setDoc(doc(db, 'audit_logs', auditId), {
+        id: auditId,
+        action: 'COMPENSATION_UPDATED',
+        performedBy: adminEmail,
+        targetEmail: editingEmployee.email,
+        details: `Salary set to ₹${compForm.baseSalary.toLocaleString('en-IN')}, Net Pay: ₹${calculateCompensation(compForm).netTakeHome.toLocaleString('en-IN')}`,
+        timestamp: serverTimestamp(),
+      });
+
+      // Notification
+      const notifId = `NOTIF-${Date.now()}`;
+      await setDoc(doc(db, 'notifications', notifId), {
+        id: notifId,
+        title: '💰 Compensation Structure Updated',
+        message: `Your monthly compensation structure has been updated by management. Net pay: ₹${calculateCompensation(compForm).netTakeHome.toLocaleString('en-IN')}`,
+        requestId: '',
+        timestamp: serverTimestamp(),
+        isRead: false,
+        recipientEmail: editingEmployee.email,
+      });
+
+      addToast(`✓ Updated compensation structure for ${editingEmployee.name}!`, 'success');
+      setEditingEmployee(null);
+    } catch (err) {
+      addToast(`Failed to update compensation: ${err.message}`, 'error');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
       // Audit Log
       const auditId = `AUD-${Date.now()}`;
